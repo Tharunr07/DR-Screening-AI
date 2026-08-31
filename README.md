@@ -2,214 +2,118 @@
 
 ## AI-Powered Diabetic Retinopathy Screening Platform
 
-DR-Screening-AI is an AI-assisted diabetic retinopathy screening platform that analyzes retinal fundus images, checks image quality, predicts diabetic retinopathy severity, provides explainable AI visualizations, and presents results through a web application.
+DR-Screening-AI is an AI-assisted diabetic retinopathy screening platform for retinal fundus image quality assessment, preprocessing, deep-learning classification, explainable AI, doctor review, and screening reports.
 
 **Technology:** MATLAB • Simulink • Deep Learning • Computer Vision • Explainable AI • FastAPI • React • Database
 
-> ⚠️ Educational/research prototype only. AI results must not be treated as a standalone medical diagnosis.
+> ⚠️ Educational/research prototype only. AI output is not a standalone medical diagnosis.
 
----
+## 🎯 Project Objective
 
-# 🎯 1. PROJECT OBJECTIVE
+The system will accept a retinal fundus image, validate image quality, preprocess it, run an AI model, predict diabetic retinopathy severity, provide confidence and screening risk, generate Grad-CAM/explainability output, store the result, allow doctor review, and generate a report.
 
-The system will:
-
-1. Accept a retinal fundus image.
-2. Validate image quality.
-3. Preprocess the image.
-4. Run a deep-learning model.
-5. Classify diabetic retinopathy severity.
-6. Generate prediction confidence.
-7. Determine a screening risk level.
-8. Generate Grad-CAM/explainability output.
-9. Store screening information.
-10. Display results in a web application.
-11. Allow doctor/reviewer validation.
-12. Generate a screening report.
-
----
-
-# 🏗️ 2. COMPLETE SYSTEM ARCHITECTURE
+## 🏗️ System Architecture
 
 ```text
-                         👤 USER / DOCTOR
-                                │
-                                ▼
-                    ┌─────────────────────┐
-                    │    REACT WEBSITE    │
-                    │ Login / Dashboard   │
-                    │ Patients / Upload   │
-                    │ Screening / Results │
-                    │ Review / Reports    │
-                    └──────────┬──────────┘
-                               │ REST API
-                               ▼
-                    ┌─────────────────────┐
-                    │       FASTAPI       │
-                    │ Authentication      │
-                    │ Patient APIs        │
-                    │ Screening APIs      │
-                    │ AI Integration      │
-                    │ Report APIs         │
-                    └───────┬───────┬─────┘
-                            │       │
-                            ▼       ▼
-                  ┌────────────┐ ┌────────────┐
-                  │ AI / MATLAB│ │  DATABASE  │
-                  │ Quality    │ │ Users      │
-                  │ Processing │ │ Patients   │
-                  │ Deep Learn │ │ Screenings │
-                  │ Grad-CAM   │ │ Reports    │
-                  └─────┬──────┘ └────────────┘
-                        │
-                        ▼
-                 ┌──────────────┐
-                 │   SIMULINK   │
-                 │ System Model │
-                 └──────────────┘
+Doctor/User
+    ↓
+React Web Application
+    ↓ REST API
+FastAPI Backend
+    ├── Authentication
+    ├── Patient APIs
+    ├── Screening APIs
+    ├── AI Integration
+    └── Report APIs
+    ↓                 ↓
+AI / MATLAB       Database
+    ↓
+Simulink
 ```
 
----
-
-# 📱 3. WEB APPLICATION STRUCTURE
+## 🌐 Web Application Structure
 
 ```text
-DR-Screening-AI
-│
-├── 🌐 frontend/
-│   ├── Landing Page
-│   ├── Login
-│   ├── Dashboard
-│   ├── Patient Management
-│   ├── New Screening
-│   ├── Image Upload
-│   ├── Screening Result
-│   ├── Explainable AI
-│   ├── Doctor Review
-│   ├── Screening History
-│   └── Reports
-│
-├── ⚡ backend/
-│   ├── Authentication
-│   ├── User Management
-│   ├── Patient APIs
-│   ├── Screening APIs
-│   ├── AI Integration
-│   ├── Database
-│   └── Report Generation
-│
-├── 🧠 ai-matlab/
-│   ├── dataset
-│   ├── preprocessing
-│   ├── models
-│   ├── explainability
-│   ├── evaluation
-│   ├── scripts
-│   └── tests
-│
-├── ⚙️ simulink/
-│   └── screening_system.slx
-│
-├── 📚 docs/
-│   ├── architecture
-│   ├── flowcharts
-│   ├── api
-│   ├── dataset
-│   └── reports
-│
-└── .gitignore
+frontend/
+├── Landing Page
+├── Login
+├── Dashboard
+├── Patient Management
+├── New Screening
+├── Image Upload
+├── Screening Result
+├── Explainable AI
+├── Doctor Review
+├── Screening History
+└── Reports
 ```
 
----
-
-# 🔄 4. COMPLETE SCREENING FLOW
+## 🔄 Complete Screening Flow
 
 ```text
 Doctor Login
-     ↓
+    ↓
 Dashboard
-     ↓
-Select / Create Patient
-     ↓
-Start New Screening
-     ↓
+    ↓
+Select/Create Patient
+    ↓
+Start Screening
+    ↓
 Upload Fundus Image
-     ↓
+    ↓
 Image Quality Check
-     │
-     ├── Poor → Upload Again
-     │
-     └── Good
-          ↓
-      Preprocessing
-          ↓
-      AI Analysis
-          ↓
-    DR Classification
-          ↓
- ┌────────┼──────────┐
- ▼        ▼          ▼
-Stage  Confidence   Risk
- └────────┼──────────┘
-          ↓
-       Grad-CAM
-          ↓
-  Explainable Result
-          ↓
+    ├── Poor → Upload Again
+    └── Good
+         ↓
+     Preprocessing
+         ↓
+     AI Analysis
+         ↓
+   DR Classification
+         ↓
+ Prediction + Confidence + Risk
+         ↓
+      Grad-CAM
+         ↓
+ Explainable Result
+         ↓
     Store Screening
-          ↓
+         ↓
     Doctor Review
-          ↓
-   Confirm / Modify
-          ↓
+         ↓
+ Confirm / Modify
+         ↓
     Final Result
-          ↓
+         ↓
    Generate Report
-          ↓
+         ↓
  Screening History
 ```
 
----
+## 📷 Image Quality Assessment
 
-# 📷 5. IMAGE QUALITY CHECK
-
-The system should check:
-
-- Blur/sharpness
-- Brightness
-- Contrast
-- Exposure
-- Retina visibility
-- Field of view
-- Image artifacts
+The image-quality module can evaluate blur/sharpness, brightness, contrast, exposure, retina visibility, field of view, and artifacts before AI inference.
 
 ```text
-Fundus Image
-     ↓
-Quality Analysis
-     ↓
- ┌───┴────────┐
- ▼            ▼
-Good         Poor
- │            │
- ▼            ▼
-Continue    Re-upload
+Fundus Image → Quality Analysis
+                    ↓
+              ┌─────┴─────┐
+              ↓           ↓
+            Good         Poor
+              ↓           ↓
+          Continue     Re-upload
 ```
 
----
-
-# 🔬 6. AI / MATLAB WORKFLOW
+## 🧠 AI / MATLAB Workflow
 
 ```text
 Retinal Image
      ↓
-Image Quality Check
+Quality Check
      ↓
 Preprocessing
      ↓
-Resize / Crop / Enhancement
-     ↓
-Normalization
+Resize / Crop / Enhancement / Normalization
      ↓
 Deep Learning Model
      ↓
@@ -226,13 +130,11 @@ Explainable Result
 Model Evaluation
 ```
 
-Candidate deep-learning architectures can include **ResNet, EfficientNet, DenseNet, or another suitable pretrained CNN**. The final model should be selected using independent validation/test performance, generalization, inference time, model size, and explainability.
+Candidate models include ResNet, EfficientNet, DenseNet, or another suitable pretrained CNN. The final model must be selected using independent test performance, generalization, inference time, model size, and explainability.
 
----
+## 👁️ DR Classification
 
-# 👁️ 7. DR CLASSIFICATION
-
-When supported by the selected dataset, the system can use five classes:
+When supported by the selected dataset, five classes can be used:
 
 ```text
 No DR
@@ -250,31 +152,17 @@ Confidence : 94.2%
 Risk Level : Medium
 ```
 
-The above values are examples only; actual values must come from the trained model.
+The values above are examples only; actual values must come from the trained model.
 
----
-
-# 🔥 8. EXPLAINABLE AI / GRAD-CAM
+## 🔥 Explainable AI / Grad-CAM
 
 ```text
-Fundus Image
-     ↓
-AI Model
-     ↓
-Prediction
-     ↓
-Grad-CAM
-     ↓
-Activation Map
-     ↓
-Heatmap Overlay
+Fundus Image → AI Model → Prediction → Grad-CAM → Heatmap Overlay
 ```
 
-The heatmap explains model behavior and should not be presented as definitive clinical lesion localization.
+The heatmap explains model behavior and must not be presented as definitive clinical lesion localization.
 
----
-
-# 📊 9. MODEL EVALUATION
+## 📊 Model Evaluation
 
 Evaluate the final model on an independent test set using:
 
@@ -287,41 +175,9 @@ Evaluate the final model on an independent test set using:
 - ROC-AUC
 - Confusion Matrix
 
-```text
-Test Dataset
-     ↓
-AI Model
-     ↓
-Predictions
-     ↓
-Metrics
-     ↓
-Performance Report
-```
-
 No performance values should be fabricated; final numbers must come from experiments.
 
----
-
-# ⚡ 10. BACKEND WORKFLOW
-
-```text
-React
-  ↓ HTTP Request
-FastAPI
-  ↓
-Validation
-  ↓
-AI Service ───── Database
-  ↓                 ↑
-Prediction ─────────┘
-  ↓
-API Response
-  ↓
-React Result Page
-```
-
-### Main API structure
+## ⚡ Backend API Structure
 
 ```text
 /api
@@ -343,9 +199,7 @@ React Result Page
     └── POST /generate
 ```
 
----
-
-# 🗄️ 11. DATABASE STRUCTURE
+## 🗄️ Database Structure
 
 ```text
 Users
@@ -380,19 +234,14 @@ Reports
 └── created_at
 ```
 
----
-
-# 👨‍⚕️ 12. DOCTOR REVIEW
+## 👨‍⚕️ Doctor Review Workflow
 
 ```text
 AI Prediction
      ↓
 Doctor Review
      ↓
- ┌───┴────┐
- ▼        ▼
-Confirm  Modify
- └───┬────┘
+Confirm / Modify
      ↓
 Doctor Notes
      ↓
@@ -401,15 +250,13 @@ Final Result
 Generate Report
 ```
 
-The application must clearly distinguish the **AI prediction** from the **doctor's final assessment**.
+The UI must distinguish the AI prediction from the doctor's final assessment.
 
----
+# 👥 Three-Member Team
 
-# 👥 13. THREE-MEMBER TEAM
+The project uses flexible responsibilities. Primary ownership means coordination, not restriction. Any member can switch modules when required.
 
-The project uses a flexible responsibility model. Primary ownership means coordination, not restriction. Every member can switch modules when required.
-
-## 👨‍💻 MEMBER A — THARUN BALAJI
+## 👨‍💻 Member 1 — Tharun Balaji
 
 ### Primary: AI / Data / MATLAB / Simulink
 
@@ -425,9 +272,9 @@ The project uses a flexible responsibility model. Primary ownership means coordi
 - Simulink implementation
 - AI inference pipeline
 
-**Backup:** FastAPI integration, API input/output, database understanding, basic frontend integration.
+**Backup:** FastAPI integration, API input/output, database understanding, and basic frontend integration.
 
-## 👨‍💻 MEMBER B — THARUN
+## 👨‍💻 Member 2 — Tharun
 
 ### Primary: Backend / Database / AI Integration
 
@@ -435,16 +282,16 @@ The project uses a flexible responsibility model. Primary ownership means coordi
 - Authentication and authorization
 - Patient APIs
 - Screening APIs
-- Database design/integration
+- Database design and integration
 - AI model integration
 - Image/file handling
 - Result storage
 - Report generation
 - Backend testing
 
-**Backup:** React/API integration, frontend debugging, AI pipeline understanding, MATLAB input/output understanding.
+**Backup:** React/API integration, frontend debugging, AI pipeline understanding, and MATLAB input/output understanding.
 
-## 👨‍💻 MEMBER C — NARENDRAN G
+## 👨‍💻 Member 3 — Narendran
 
 ### Primary: Frontend / UI / UX
 
@@ -464,26 +311,11 @@ The project uses a flexible responsibility model. Primary ownership means coordi
 - Responsive design
 - Frontend testing
 
-**Backup:** AI/ML workflow, dataset structure, basic MATLAB workflow, backend API integration.
+**Backup:** AI/ML workflow, dataset structure, basic MATLAB workflow, and backend API integration.
 
----
+## ⚖️ Equal Contribution & Work Switching
 
-# ⚖️ 14. EQUAL CONTRIBUTION & WORK SWITCHING
-
-All members contribute to:
-
-```text
-Development
-Testing
-Documentation
-Integration
-Debugging
-Research
-Presentation
-Demo
-```
-
-Work can be transferred at any time:
+All members contribute to development, testing, documentation, integration, debugging, research, presentation, and demo.
 
 ```text
 Current Member
@@ -492,18 +324,16 @@ Commit Changes
       ↓
 Push to GitHub
       ↓
-Document Current Status
+Document Status
       ↓
 Another Member Pulls Latest Code
       ↓
-Continues the Work
+Continues Development
 ```
 
-Every major module must have enough documentation for another member to continue it.
+No critical module should be understood by only one member.
 
----
-
-# 🔗 15. AI → BACKEND → FRONTEND INTEGRATION
+## 🔗 AI → Backend → Frontend Integration
 
 The AI module should return a documented structure such as:
 
@@ -516,8 +346,6 @@ The AI module should return a documented structure such as:
 }
 ```
 
-Integration flow:
-
 ```text
 THARUN BALAJI
 AI / MATLAB / Simulink
@@ -527,21 +355,18 @@ AI / MATLAB / Simulink
 THARUN
 FastAPI / Database
         ↓
-    REST API
+      REST API
         ↓
-NARENDRA N
+NARENDRAN
 React / UI
         ↓
 Doctor Screening Result
 ```
 
----
-
-# 🧩 16. GITHUB REPOSITORY STRUCTURE
+## 🧩 GitHub Repository Structure
 
 ```text
 DR-Screening-AI/
-│
 ├── frontend/
 ├── backend/
 ├── ai-matlab/
@@ -552,11 +377,11 @@ DR-Screening-AI/
 └── README.md
 ```
 
-### Suggested branches
+### Suggested Branches
 
 ```text
 main
-  │
+  ↓
 develop
   ├── feature/ai
   ├── feature/backend
@@ -568,7 +393,7 @@ develop
   └── feature/dashboard
 ```
 
-### Development workflow
+### GitHub Development Workflow
 
 ```text
 Create Feature
@@ -594,9 +419,7 @@ Integration Testing
 Merge → main
 ```
 
----
-
-# 📦 17. DATASET MANAGEMENT
+## 📦 Dataset Management
 
 The complete retinal dataset should normally stay outside GitHub unless its license permits redistribution.
 
@@ -608,20 +431,9 @@ ai-matlab/
     └── test/
 ```
 
-GitHub should contain:
+GitHub should contain the dataset source, download instructions, folder structure, class definitions, split information, and preprocessing requirements. Only permitted sample data should be committed.
 
-- Dataset source
-- Download instructions
-- Folder structure
-- Class definitions
-- Train/validation/test split information
-- Preprocessing requirements
-
-Only permitted small sample data should be committed.
-
----
-
-# 🔐 18. SECURITY
+## 🔐 Security
 
 Never commit:
 
@@ -635,46 +447,29 @@ Never commit:
 ❌ Sensitive medical images
 ```
 
-Use `.env` locally and provide `.env.example` for required variables.
+Use `.env` locally and `.env.example` for required variables.
 
----
-
-# 🧪 19. TESTING STRATEGY
-
-### AI
+## 🧪 Testing Strategy
 
 ```text
+AI:
 Image → Preprocessing → Model → Prediction → Grad-CAM
-```
 
-### Backend
-
-```text
+Backend:
 API Request → Validation → AI Service → Database → Response
-```
 
-### Frontend
-
-```text
+Frontend:
 Upload → API Call → Loading → Result → Visualization
-```
 
-### Full System
-
-```text
+Full System:
 Login → Patient → Upload → AI → Prediction → Heatmap
 → Database → Doctor Review → Report
 ```
 
----
-
-# 📅 20. DEVELOPMENT PHASES
+## 📅 Development Phases
 
 ### Phase 1 — Setup
-
-```text
 GitHub → Repository → Folder Structure → Development Environment
-```
 
 ### Phase 2 — Parallel Development
 
@@ -693,78 +488,57 @@ Frontend ↔ FastAPI ↔ AI Model ↔ Database
 
 ### Phase 4 — Advanced Features
 
-```text
 Grad-CAM • Image Quality • Risk Assessment • Doctor Review • Reports • Simulink
-```
 
 ### Phase 5 — Testing
 
-```text
 Unit → Integration → System → Performance → Final Demo
-```
 
----
-
-# 🚀 21. FINAL END RESULT
+## 🚀 Final End Result
 
 ```text
-              👨‍⚕️ DOCTOR
-                  ↓
-                LOGIN
-                  ↓
-              DASHBOARD
-                  ↓
-            PATIENT PROFILE
-                  ↓
-            NEW SCREENING
-                  ↓
-          UPLOAD FUNDUS IMAGE
-                  ↓
-          IMAGE QUALITY CHECK
-                  ↓
-             AI PROCESSING
-                  ↓
-        ┌─────────────────────┐
-        │      AI RESULT      │
-        │ DR Stage            │
-        │ Confidence          │
-        │ Risk Level          │
-        │ Original Image      │
-        │ Grad-CAM Heatmap    │
-        └──────────┬──────────┘
-                   ↓
-             DOCTOR REVIEW
-                   ↓
-             FINAL RESULT
-                   ↓
-            GENERATE REPORT
-                   ↓
-          SCREENING HISTORY
+Doctor
+  ↓
+Login
+  ↓
+Dashboard
+  ↓
+Patient Profile
+  ↓
+New Screening
+  ↓
+Upload Fundus Image
+  ↓
+Image Quality Check
+  ↓
+AI Processing
+  ↓
+DR Stage + Confidence + Risk + Grad-CAM
+  ↓
+Doctor Review
+  ↓
+Final Result
+  ↓
+Generate Report
+  ↓
+Screening History
 ```
 
----
+## 🏆 Final Project Output
 
-# 🏆 22. FINAL PROJECT OUTPUT
+- 🌐 React Web Application
+- 🧠 AI Diabetic Retinopathy Detection
+- 🔬 MATLAB Image Processing
+- ⚙️ Simulink System Simulation
+- 🔥 Explainable AI / Grad-CAM
+- ⚡ FastAPI Backend
+- 🗄️ Database
+- 👨‍⚕️ Doctor Review
+- 📄 Screening Report
 
-The completed platform combines:
+## 👥 Team Contribution Summary
 
-```text
-🌐 React Web Application
-🧠 AI Diabetic Retinopathy Detection
-🔬 MATLAB Image Processing
-⚙️ Simulink System Simulation
-🔥 Explainable AI / Grad-CAM
-⚡ FastAPI Backend
-🗄️ Database
-👨‍⚕️ Doctor Review
-📄 Screening Report
-```
-
----
-
-# 👥 23. TEAM CONTRIBUTION SUMMARY
-
-| Work Area | Tharun Balaji | Tharun | Narendra N |
+| Work Area | Tharun Balaji | Tharun | Narendran |
 |---|---|---|---|
 | Dataset | ⭐ Primary | Support | Support |
 | Image Processing | ⭐ Primary | Support | Support |
@@ -782,40 +556,36 @@ The completed platform combines:
 | Documentation | ⭐ | ⭐ | ⭐ |
 | Presentation | ⭐ | ⭐ | ⭐ |
 
-**Important:** Primary responsibility means coordination. Any member can contribute to or take over another module.
+**Primary responsibility means coordination only. Any member can contribute to or take over another module.**
 
----
-
-# 🎯 24. PROJECT SUCCESS CRITERIA
+## 🎯 Project Success Criteria
 
 ```text
 ✅ Login works
-        ↓
+↓
 ✅ Patient can be created/selected
-        ↓
+↓
 ✅ Fundus image can be uploaded
-        ↓
+↓
 ✅ Image quality is checked
-        ↓
+↓
 ✅ AI processes the image
-        ↓
+↓
 ✅ DR stage is predicted
-        ↓
+↓
 ✅ Confidence is generated
-        ↓
+↓
 ✅ Explainability visualization is generated
-        ↓
+↓
 ✅ Result is stored
-        ↓
+↓
 ✅ Doctor can review the result
-        ↓
+↓
 ✅ Report can be generated
-        ↓
+↓
 ✅ Screening history is available
 ```
 
----
-
-# 📜 DISCLAIMER
+## 📜 Disclaimer
 
 This project is developed for educational, research, and prototype purposes. The AI output supports a screening workflow and should not be treated as a standalone medical diagnosis. Clinical decisions must be made by qualified healthcare professionals using appropriate clinical evaluation.
