@@ -28,7 +28,9 @@ function results = predictDRSeverity(drModel, refModel, XTest, imageIds, dataset
             XTestRef(nanIdx, j) = refMedian(j);
         end
         [refPred, ~, refScores] = predict(refModel, XTestRef);
-        refProb = refScores(:, 2);
+        % scores(:,1) = P(class=0), scores(:,2) = P(class=1)
+        % fitPosterior may reverse column order; use scores(:,1) for P(referable=1)
+        refProb = refScores(:, 1);
     else
         refPred = double(YPred >= cfg.referable.threshold);
         refProb = zeros(nSamples, 1);
@@ -45,13 +47,16 @@ function results = predictDRSeverity(drModel, refModel, XTest, imageIds, dataset
     results.referable_pred = refPred(:);
     results.referable_probability = refProb(:);
 
-    % Class probabilities
+    % Class probabilities (softmax ECOC scores to get proper probabilities)
+    ecocScores = classScores;
+    expScores = exp(ecocScores);
+    normScores = expScores ./ sum(expScores, 2);
     for g = 0:4
-        results.(sprintf('prob_level_%d', g)) = classScores(:, g + 1);
+        results.(sprintf('prob_level_%d', g)) = normScores(:, g + 1);
     end
 
     % Confidence = max probability
-    results.confidence_score = max(classScores, [], 2);
+    results.confidence_score = max(normScores, [], 2);
 
     % Classification status
     results.classification_status = repmat("COMPLETED", nSamples, 1);

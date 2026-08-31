@@ -63,7 +63,9 @@ function [model, trainInfo] = trainReferableClassifier(XTrain, YTrain, XVal, YVa
     accuracy    = (tp + tn) / max(1, tp + tn + fp + fn);
 
     % ROC-AUC
-    refProb = scoresVal(:, 2);
+    % scores(:,1) = P(class=0), scores(:,2) = P(class=1)
+    % fitPosterior may reverse column order; use scores(:,1) for P(referable=1)
+    refProb = scoresVal(:, 1);
     [fpr, tpr, ~, aucVal] = perfcurve(YValBin, refProb, 1);
 
     trainInfo = struct();
