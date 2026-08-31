@@ -13,7 +13,7 @@ Research prototype / educational system. NOT a clinical diagnostic device.
 | 1 | Dataset Foundation | COMPLETE (PASS 10/10) |
 | 1.5 | Real Dataset Acquisition | COMPLETE (7872 images) |
 | 2 | Image Quality Assessment + Preprocessing | COMPLETE (7872 assessed, 12/12 tests PASS) |
-| 3 | Retinal Structures + Lesion Analysis | FUTURE |
+| 3 | Retinal Structures + Lesion Analysis | COMPLETE (12/12 tests PASS, DRIVE+IDRiD validated) |
 | 4 | DR Severity Classification | FUTURE |
 | 5 | Explainability (Grad-CAM) | FUTURE |
 | 6 | Backend Integration (FastAPI) | FUTURE |
@@ -160,6 +160,23 @@ stats = runQualityAssessment('maxImages', 100, 'verbose', true);
 generateQualityReport();
 ```
 
+### Phase 3 (Structure + Lesion Analysis)
+
+```matlab
+addpath(genpath('matlab'));
+% Run synthetic tests (12/12 should pass)
+res = testPhase3Pipeline('verbose', true);
+
+% Batch analysis on DRIVE (vessel validation)
+stats = runPhase3Analysis('datasets', 'DRIVE', 'maxImages', 40, 'verbose', true);
+
+% Batch analysis on IDRiD (lesion validation)
+stats = runPhase3Analysis('datasets', 'IDRiD', 'maxImages', 494, 'verbose', true);
+
+% Full batch analysis
+stats = runPhase3Analysis('verbose', true);
+```
+
 ---
 
 ## Structure
@@ -183,6 +200,7 @@ DR_Screening/
   models/                   # Trained models (not committed)
   results/
     quality/                # Phase 2 outputs (quality_results.csv, examples, etc.)
+    phase3/                 # Phase 3 outputs (structure_results.csv, phase3_metrics.json)
     audit_results.json      # Phase 1 audit
     phase1_validation.json  # Phase 1 validation
   docs/                     # Documentation
@@ -199,6 +217,8 @@ DR_Screening/
 | `docs/PHASE1_5_REAL_DATASET_VERIFICATION.md` | Real dataset acquisition report |
 | `docs/PHASE2_QUALITY_ASSESSMENT.md` | Phase 2 quality pipeline documentation |
 | `docs/PHASE2_QUALITY_VALIDATION.md` | Phase 2 test results |
+| `docs/PHASE3_IMPLEMENTATION_REPORT.md` | Phase 3 structure + lesion pipeline documentation |
+| `docs/PHASE3_VALIDATION_REPORT.md` | Phase 3 test results and real data metrics |
 | `docs/DATASET_PROVENANCE.md` | Dataset origin and licensing |
 | `docs/DATA_LEAKAGE_POLICY.md` | Leakage prevention policy |
 | `docs/MESSIDOR2_EXTERNAL_VALIDATION.md` | Messidor-2 isolation policy |
