@@ -444,7 +444,7 @@ The project uses a flexible responsibility model. Primary ownership means coordi
 
 **Backup:** React/API integration, frontend debugging, AI pipeline understanding, MATLAB input/output understanding.
 
-## 👨‍💻 MEMBER C — NARENDRA N
+## 👨‍💻 MEMBER C — NARENDRAN G
 
 ### Primary: Frontend / UI / UX
 
