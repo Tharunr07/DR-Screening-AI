@@ -1,0 +1,29 @@
+# Raw retinal datasets — never commit images
+data/raw/
+!data/raw/APTOS2019/.gitkeep
+!data/raw/IDRiD/.gitkeep
+!data/raw/DRIVE/.gitkeep
+!data/raw/Messidor2/.gitkeep
+
+# MATLAB generated artifacts (regenerable)
+data/processed/
+!data/processed/.gitkeep
+data/splits/
+!data/splits/.gitkeep
+results/
+!results/.gitkeep
+
+# Models (large binaries)
+models/
+!models/.gitkeep
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.asv
+*.mex*
+slprj/
+*.slxc
+
+# MATLAB temp
+*.log
