@@ -605,7 +605,7 @@ The project uses a **flexible 3-member responsibility model**. Each member has a
 
 ---
 
-# 👨‍💻 18. MEMBER A — THSRUN BALAJI
+# 👨‍💻 18. MEMBER A — THARUN BALAJI
 
 ### Primary: AI / Data / MATLAB / Simulink
 
