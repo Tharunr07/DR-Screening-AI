@@ -1,0 +1,79 @@
+{
+  "audit_date": "2026-08-31",
+  "audit_version": "1.0",
+  "bugs_found": [
+    {
+      "id": "BUG-001",
+      "severity": "critical",
+      "title": "Binary SVM score column inversion",
+      "description": "scores(:,2) from fitPosterior returned P(class=0) instead of P(class=1). The referable probability was inverted, causing AUC=0.2259 (<0.5).",
+      "location": "predictDRSeverity.m:31, trainReferableClassifier.m:66",
+      "fix": "Changed refProb = refScores(:,2) to refProb = refScores(:,1)",
+      "impact": "AUC corrected from 0.2259 to 0.7741. All other binary metrics unchanged.",
+      "root_cause": "MATLAB fitPosterior may reverse column order for binary SVM. Column 1 = P(class=0), column 2 = P(class=1) for ClassNames=[0,1]."
+    },
+    {
+      "id": "BUG-002",
+      "severity": "moderate",
+      "title": "ECOC scores not softmax-normalized",
+      "description": "prob_level_0 through prob_level_4 contained raw ECOC log-odds scores (sums ~-3.88), not probabilities (should sum to 1).",
+      "location": "predictDRSeverity.m:37-39",
+      "fix": "Applied softmax: exp(scores) ./ sum(exp(scores), 2)",
+      "impact": "Row sums now = 1.000000 exactly. Five-class AUC unchanged (0.8095) because perfcurve is rank-invariant."
+    }
+  ],
+  "verified_metrics": {
+    "five_class": {
+      "accuracy": 0.6324,
+      "balanced_accuracy": 0.4607,
+      "macro_sensitivity": 0.4607,
+      "macro_precision": 0.4472,
+      "macro_f1": 0.3875,
+      "macro_auc": 0.8095,
+      "per_class_auc": {
+        "level_0": 0.9391,
+        "level_1": 0.7794,
+        "level_2": 0.7929,
+        "level_3": 0.7768,
+        "level_4": 0.7591
+      }
+    },
+    "referable_binary": {
+      "sensitivity": 0.7004,
+      "specificity": 0.8479,
+      "precision": 0.7692,
+      "npv": 0.7963,
+      "f1": 0.7332,
+      "auc": 0.7741,
+      "pr_auc": 0.7005,
+      "confusion_matrix": {
+        "TP": 180,
+        "FN": 77,
+        "FP": 54,
+        "TN": 301
+      }
+    },
+    "probability_direction": {
+      "mean_refProb_referable_1": 0.8351,
+      "mean_refProb_referable_0": 0.1814,
+      "correct": true
+    },
+    "five_class_probability_sums": {
+      "min": 1.0,
+      "max": 1.0,
+      "all_sum_to_1": true
+    }
+  },
+  "test_set_integrity": {
+    "test_size": 612,
+    "split_source": "data/splits/test.csv",
+    "seed": 42,
+    "patient_grouped": true,
+    "no_leakage": true
+  },
+  "reproducibility": {
+    "deterministic": true,
+    "seed": 42,
+    "config_version": "4.0.0"
+  }
+}
