@@ -169,10 +169,17 @@ function stats = runPhase3Analysis(varargin)
         rows(i, :) = row;
 
         % Progress
-        if opts.verbose && mod(i, 500) == 0
+        if opts.verbose && mod(i, 100) == 0
             elapsed = toc(ticTotal);
-            fprintf('[runPhase3Analysis] %d/%d (%.1f%%) elapsed %.1fs avg %.3fs/img\n', ...
+            fprintf('[Phase3] %d/%d (%.1f%%) elapsed %.1fs avg %.3fs/img\n', ...
                 i, nTotal, 100*i/nTotal, elapsed, elapsed/i);
+            % Write progress to file for external monitoring
+            try
+                pf = fopen(fullfile(cfg.resultsRoot, 'progress.txt'), 'w');
+                fprintf(pf, '%d/%d %.1f%% %.1fs %.3fs/img\n', i, nTotal, 100*i/nTotal, elapsed, elapsed/i);
+                fclose(pf);
+            catch
+            end
         end
     end
 

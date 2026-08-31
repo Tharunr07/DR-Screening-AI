@@ -14,6 +14,7 @@ Research prototype / educational system. NOT a clinical diagnostic device.
 | 1.5 | Real Dataset Acquisition | COMPLETE (7872 images) |
 | 2 | Image Quality Assessment + Preprocessing | COMPLETE (7872 assessed, 12/12 tests PASS) |
 | 3 | Retinal Structures + Lesion Analysis | COMPLETE (12/12 tests PASS, DRIVE+IDRiD validated) |
+| 4 | DR Severity Classification | COMPLETE (12/12 tests PASS, 612 test images, 5-class+referable) |
 | 4 | DR Severity Classification | FUTURE |
 | 5 | Explainability (Grad-CAM) | FUTURE |
 | 6 | Backend Integration (FastAPI) | FUTURE |
@@ -177,6 +178,17 @@ stats = runPhase3Analysis('datasets', 'IDRiD', 'maxImages', 494, 'verbose', true
 stats = runPhase3Analysis('verbose', true);
 ```
 
+### Phase 4 (DR Classification)
+
+```matlab
+addpath(genpath('matlab'));
+% Run synthetic tests (12/12 should pass)
+res = testClassificationPipeline('verbose', true);
+
+% Run full classification pipeline
+stats = runPhase4Classification('verbose', true);
+```
+
 ---
 
 ## Structure
@@ -201,6 +213,7 @@ DR_Screening/
   results/
     quality/                # Phase 2 outputs (quality_results.csv, examples, etc.)
     phase3/                 # Phase 3 outputs (structure_results.csv, phase3_metrics.json)
+    classification/         # Phase 4 outputs (predictions, metrics, confusion matrix)
     audit_results.json      # Phase 1 audit
     phase1_validation.json  # Phase 1 validation
   docs/                     # Documentation
@@ -219,6 +232,7 @@ DR_Screening/
 | `docs/PHASE2_QUALITY_VALIDATION.md` | Phase 2 test results |
 | `docs/PHASE3_IMPLEMENTATION_REPORT.md` | Phase 3 structure + lesion pipeline documentation |
 | `docs/PHASE3_VALIDATION_REPORT.md` | Phase 3 test results and real data metrics |
+| `docs/PHASE4_DR_CLASSIFICATION.md` | Phase 4 DR classification implementation report |
 | `docs/DATASET_PROVENANCE.md` | Dataset origin and licensing |
 | `docs/DATA_LEAKAGE_POLICY.md` | Leakage prevention policy |
 | `docs/MESSIDOR2_EXTERNAL_VALIDATION.md` | Messidor-2 isolation policy |
