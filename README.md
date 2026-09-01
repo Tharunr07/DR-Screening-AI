@@ -15,8 +15,8 @@ Research prototype / educational system. NOT a clinical diagnostic device.
 | 2 | Image Quality Assessment + Preprocessing | COMPLETE (7872 assessed, 12/12 tests PASS) |
 | 3 | Retinal Structures + Lesion Analysis | COMPLETE (12/12 tests PASS, DRIVE+IDRiD validated) |
 | 4 | DR Severity Classification | COMPLETE (12/12 tests PASS, 612 test images, 5-class+referable) |
-| 4 | DR Severity Classification | FUTURE |
-| 5 | Explainability (Grad-CAM) | FUTURE |
+| 4.1 | Evaluation Integrity Audit | COMPLETE (2 bugs fixed, AUC corrected to 0.7741) |
+| 5 | Explainability + Human Review | COMPLETE (12/12 tests PASS, 581/612 images, SVM-appropriate explainability) |
 | 6 | Backend Integration (FastAPI) | FUTURE |
 | 7 | Frontend (React) | FUTURE |
 | 8 | Simulink System Model | FUTURE |
