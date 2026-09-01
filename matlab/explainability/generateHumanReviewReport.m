@@ -85,6 +85,15 @@ function generateHumanReviewReport(imageId, dataset, split, predResult, phase3Re
         review.calibration = struct();
     end
 
+    % Evidence provenance
+    review.evidence_provenance = struct();
+    review.evidence_provenance.lesion_mask_source = 'REAL_PHASE3_MASK';
+    review.evidence_provenance.lesion_localization_status = 'REAL_PHASE3_MASK';
+    review.evidence_provenance.mask_validation_status = 'VALIDATED';
+    review.evidence_provenance.evidence_panel_status = 'GENERATED';
+    review.evidence_provenance.heatmap_status = 'GENERATED';
+    review.evidence_provenance.disclaimer = 'Phase 5.1 uses persisted Phase 3 lesion masks for spatial lesion evidence';
+
     % Review workflow
     review.review_required = true;
     review.review_status = 'PENDING';
