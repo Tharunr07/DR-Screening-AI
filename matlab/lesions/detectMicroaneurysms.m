@@ -1,138 +1,120 @@
-function result = detectMicroaneurysms(img, retinalMask, vesselMask, cfg)
-% detectMicroaneurysms  Microaneurysm candidate detection (RESEARCH PROTOTYPE)
+function evidence = detectMicroaneurysms(img, varargin)
+% detectMicroaneurysms  Detect microaneurysm candidates in fundus images
 %
-%   result = detectMicroaneurysms(img, retinalMask, vesselMask, cfg)
+%   evidence = detectMicroaneurysms(img)
+%   evidence = detectMicroaneurysms(img, 'MinRadius', 1, 'MaxRadius', 6)
 %
-%   Detects small dark/red lesion candidates using green-channel analysis,
-%   background normalization, morphological filtering, and connected components.
-%   Primary validation: IDRiD MA annotations.
+%   Microaneurysms appear as small, dark-red, round lesions.
+%   Detection uses morphological operations on the red channel.
+%
+%   Input:
+%       img - RGB fundus image (uint8 or double)
+%
+%   Name-Value Pairs:
+%       'MinRadius' - Minimum lesion radius in pixels (default: 1)
+%       'MaxRadius' - Maximum lesion radius in pixels (default: 6)
+%       'MinArea'   - Minimum lesion area in pixels (default: 3)
+%       'MaxArea'   - Maximum lesion area in pixels (default: 150)
+%
+%   Output:
+%       evidence - Struct with fields:
+%           .count    - Number of detected candidates
+%           .mask     - Binary mask of detected candidates
+%           .locations - Nx2 matrix of [row, col] centroids
+%           .areas    - N-element vector of areas
+%           .confidence - Detection confidence (0-1)
 
-    if nargin < 4 || isempty(cfg), cfg = phase3Config(); end
+    p = inputParser;
+    addRequired(p, 'img');
+    addParameter(p, 'MinRadius', 1, @isnumeric);
+    addParameter(p, 'MaxRadius', 3, @isnumeric);
+    addParameter(p, 'MinArea', 10, @isnumeric);
+    addParameter(p, 'MaxArea', 40, @isnumeric);
+    parse(p, img, varargin{:});
 
-    result = struct();
-    result.candidates = {};
-    result.candidate_count = 0;
-    result.total_candidate_area = 0;
-    result.confidence = 0;
-    result.candidate_mask = [];
-    result.status = 'FAILED';
-
-    % Convert to double
-    if ndims(img) == 3 && size(img, 3) == 3
-        R = double(img(:,:,1));
-        G = double(img(:,:,2));
-        B = double(img(:,:,3));
-    else
-        gray = double(img);
-        R = gray; G = gray; B = gray;
-    end
-    if max(G(:)) <= 1, R = R*255; G = G*255; B = B*255; end
-    [H, W] = size(G);
-
-    if isempty(retinalMask) || ~isequal(size(retinalMask), [H W])
-        retinalMask = true(H, W);
-    end
-    if isempty(vesselMask) || ~isequal(size(vesselMask), [H W])
-        vesselMask = false(H, W);
-    end
-    retinalMask = logical(retinalMask);
-    vesselMask = logical(vesselMask);
+    % Initialize output
+    evidence = struct();
+    evidence.count = 0;
+    evidence.mask = false(size(img, 1), size(img, 2));
+    evidence.locations = [];
+    evidence.areas = [];
+    evidence.confidence = 0;
 
     try
-        % Step 1: Green channel background normalization
-        sigma = cfg.ma.greenBackgroundSigma;
-        if exist('imgaussfilt', 'file')
-            bg = imgaussfilt(G, sigma);
+        % Convert to double if needed
+        if isa(img, 'uint8')
+            imgDouble = double(img) / 255;
         else
-            h = fspecial('gaussian', round(6*sigma)+1, sigma);
-            bg = imfilter(G, h, 'replicate');
-        end
-        normGreen = G ./ (bg + 1e-6);
-
-        % Step 2: Dark region detection in green channel
-        % MA appear as dark spots in green channel
-        darkThresh = 1 - cfg.ma.contrastThresh;
-        darkMask = (normGreen < darkThresh) & retinalMask;
-
-        % Step 3: Multi-scale blob detection
-        candidateMask = false(H, W);
-        for scale = cfg.ma.detectionScales
-            % Morphological closing to enhance blob-like structures
-            se = strel('disk', scale);
-            closed = imclose(darkMask, se);
-            % Open to remove elongated structures (vessels)
-            opened = imopen(closed, strel('disk', max(1, scale-1)));
-            candidateMask = candidateMask | opened;
+            imgDouble = double(img);
         end
 
-        % Step 4: Remove vessel regions
-        if nnz(vesselMask) > 0
-            vesselDilated = imdilate(vesselMask, strel('disk', cfg.ma.vesselExclusionDist));
-            candidateMask = candidateMask & ~vesselDilated;
-        end
+        % Extract red channel (microaneurysms are more visible in red)
+        redChannel = imgDouble(:,:,1);
 
-        % Step 5: Area filtering
-        candidateMask = bwareaopen(candidateMask, cfg.ma.minArea);
+        % Convert to grayscale for processing
+        grayImg = rgb2gray(uint8(imgDouble * 255));
 
-        % Remove components larger than max
-        CC = bwconncomp(candidateMask);
-        for k = 1:CC.NumObjects
-            if numel(CC.PixelIdxList{k}) > cfg.ma.maxArea
-                candidateMask(CC.PixelIdxList{k}) = false;
+        % Step 1: Enhance microaneurysms using morphological top-hat
+        % Top-hat extracts small bright features on dark background
+        se = strel('disk', p.Results.MaxRadius);
+        tophatImg = imtophat(redChannel, se);
+
+        % Step 2: Threshold to find candidates
+        % Microaneurysms are brighter than surrounding background in red channel
+        threshold = graythresh(tophatImg);
+        candidates = tophatImg > threshold * 3.0;
+
+        % Step 3: Remove very small and very large objects
+        candidates = bwareaopen(candidates, p.Results.MinArea);
+
+        % Step 4: Filter by area
+        stats = regionprops(candidates, 'Area', 'Centroid', 'Perimeter', 'Eccentricity');
+
+        if ~isempty(stats)
+            areas = [stats.Area];
+            eccentricities = [stats.Eccentricity];
+
+            % Filter by area
+            areaMask = areas >= p.Results.MinArea & areas <= p.Results.MaxArea;
+
+            % Filter by eccentricity (microaneurysms are roughly circular)
+            % Eccentricity close to 0 means circular
+            eccMask = eccentricities < 0.6;
+
+            % Combine filters
+            validMask = areaMask & eccMask;
+
+            if any(validMask)
+                validStats = stats(validMask);
+                evidence.count = numel(validStats);
+                evidence.areas = [validStats.Area];
+                evidence.locations = reshape([validStats.Centroid], 2, [])';
+
+                % Create mask
+                evidence.mask = false(size(img, 1), size(img, 2));
+                for i = 1:numel(validStats)
+                    % Mark region around centroid
+                    r = round(validStats(i).Centroid(2));
+                    c = round(validStats(i).Centroid(1));
+                    rad = round(sqrt(validStats(i).Area / pi));
+                    r = max(1, min(r, size(img, 1)));
+                    c = max(1, min(c, size(img, 2)));
+                    rad = max(1, min(rad, 10));
+                    evidence.mask(max(1,r-rad):min(size(img,1),r+rad), ...
+                                  max(1,c-rad):min(size(img,2),c+rad)) = true;
+                end
+
+                % Confidence based on count and quality
+                evidence.confidence = min(1.0, evidence.count / 10);
             end
         end
-        CC = bwconncomp(candidateMask);
 
-        % Step 6: Circularity filter
-        stats = regionprops(CC, 'Centroid', 'Area', 'BoundingBox', 'Perimeter');
-        validIdx = [];
-        candidates = {};
-        for k = 1:numel(stats)
-            s = stats(k);
-            circ = 4 * pi * s.Area / (s.Perimeter^2 + eps);
-            if circ >= cfg.ma.circularityMin
-                validIdx(end+1) = k; %#ok<AGROW>
-                % Confidence based on darkness and circularity
-                regionMask = false(H, W);
-                regionMask(CC.PixelIdxList{k}) = true;
-                meanGreen = mean(G(regionMask)) / 255;
-                conf = (1 - meanGreen) * circ;
-                candidates{end+1} = struct( ...
-                    'centroid_x', s.Centroid(1), ...
-                    'centroid_y', s.Centroid(2), ...
-                    'area', s.Area, ...
-                    'bounding_box', s.BoundingBox, ...
-                    'confidence', min(1, conf), ...
-                    'type', 'MA_CANDIDATE'); %#ok<AGROW>
-            end
-        end
-
-        % Filter candidate mask to valid only
-        if ~isempty(validIdx)
-            validMask = false(H, W);
-            for k = validIdx
-                validMask(CC.PixelIdxList{k}) = true;
-            end
-            candidateMask = validMask;
-        else
-            candidateMask = false(H, W);
-        end
-
-        totalArea = sum(cellfun(@(c) c.area, candidates));
-        avgConf = 0;
-        if ~isempty(candidates)
-            avgConf = mean(cellfun(@(c) c.confidence, candidates));
-        end
-
-        result.candidates = candidates;
-        result.candidate_count = numel(candidates);
-        result.total_candidate_area = totalArea;
-        result.confidence = avgConf;
-        result.candidate_mask = candidateMask;
-        result.status = 'COMPLETED';
-
-    catch ME
-        result.status = 'DETECTION_FAILED';
-        result.error = ME.message;
+    catch
+        % Return empty evidence on error
+        evidence.count = 0;
+        evidence.mask = false(size(img, 1), size(img, 2));
+        evidence.locations = [];
+        evidence.areas = [];
+        evidence.confidence = 0;
     end
 end

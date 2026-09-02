@@ -1,118 +1,115 @@
-function result = detectHemorrhages(img, retinalMask, vesselMask, cfg)
-% detectHemorrhages  Hemorrhage candidate detection (RESEARCH PROTOTYPE)
+function evidence = detectHemorrhages(img, varargin)
+% detectHemorrhages  Detect hemorrhage candidates in fundus images
 %
-%   result = detectHemorrhages(img, retinalMask, vesselMask, cfg)
+%   evidence = detectHemorrhages(img)
 %
-%   Detects dark/red lesion candidates using color, morphology, and vessel filtering.
-%   Primary validation: IDRiD HE annotations.
+%   Hemorrhages appear as dark/red patches larger than microaneurysms.
+%   Detection uses color segmentation and morphological operations.
+%
+%   Input:
+%       img - RGB fundus image (uint8 or double)
+%
+%   Name-Value Pairs:
+%       'MinArea' - Minimum lesion area in pixels (default: 50)
+%       'MaxArea' - Maximum lesion area in pixels (default: 2000)
+%
+%   Output:
+%       evidence - Struct with fields:
+%           .count    - Number of detected candidates
+%           .mask     - Binary mask of detected candidates
+%           .locations - Nx2 matrix of [row, col] centroids
+%           .areas    - N-element vector of areas
+%           .totalArea - Total hemorrhage area in pixels
+%           .confidence - Detection confidence (0-1)
 
-    if nargin < 4 || isempty(cfg), cfg = phase3Config(); end
+    p = inputParser;
+    addRequired(p, 'img');
+    addParameter(p, 'MinArea', 50, @isnumeric);
+    addParameter(p, 'MaxArea', 2000, @isnumeric);
+    parse(p, img, varargin{:});
 
-    result = struct();
-    result.candidates = {};
-    result.candidate_count = 0;
-    result.total_candidate_area = 0;
-    result.confidence = 0;
-    result.candidate_mask = [];
-    result.status = 'FAILED';
-
-    % Convert to double
-    if ndims(img) == 3 && size(img, 3) == 3
-        R = double(img(:,:,1));
-        G = double(img(:,:,2));
-        B = double(img(:,:,3));
-        gray = 0.2989*R + 0.5870*G + 0.1140*B;
-    else
-        gray = double(img);
-        R = gray; G = gray; B = gray;
-    end
-    if max(gray(:)) <= 1
-        R = R*255; G = G*255; B = B*255; gray = gray*255;
-    end
-    [H, W] = size(gray);
-
-    if isempty(retinalMask) || ~isequal(size(retinalMask), [H W])
-        retinalMask = true(H, W);
-    end
-    if isempty(vesselMask) || ~isequal(size(vesselMask), [H W])
-        vesselMask = false(H, W);
-    end
-    retinalMask = logical(retinalMask);
-    vesselMask = logical(vesselMask);
+    % Initialize output
+    evidence = struct();
+    evidence.count = 0;
+    evidence.mask = false(size(img, 1), size(img, 2));
+    evidence.locations = [];
+    evidence.areas = [];
+    evidence.totalArea = 0;
+    evidence.confidence = 0;
 
     try
-        % Step 1: Dark region detection
-        % Hemorrhages are dark in all channels, especially green
-        darkGray = gray < cfg.he.darkIntensityThresh;
-        darkGreen = G < (cfg.he.greenDarkThresh * 255);
-
-        % Combined: both gray and green must be dark
-        darkMask = darkGray & darkGreen & retinalMask;
-
-        % Step 2: Morphological operations to enhance blob-like structures
-        % Close small gaps
-        darkMask = imclose(darkMask, strel('disk', cfg.he.morphCloseRadius));
-        % Open to remove noise
-        darkMask = imopen(darkMask, strel('disk', cfg.he.morphOpenRadius));
-
-        % Step 3: Multi-scale detection
-        candidateMask = false(H, W);
-        for scale = 1:3
-            se = strel('disk', scale);
-            processed = imclose(darkMask, se);
-            processed = imopen(processed, strel('disk', max(1, scale-1)));
-            candidateMask = candidateMask | processed;
+        % Convert to double if needed
+        if isa(img, 'uint8')
+            imgDouble = double(img) / 255;
+        else
+            imgDouble = double(img);
         end
 
-        % Step 4: Remove vessel regions
-        if nnz(vesselMask) > 0
-            vesselDilated = imdilate(vesselMask, strel('disk', cfg.he.vesselExclusionDist));
-            candidateMask = candidateMask & ~vesselDilated;
-        end
+        % Convert to HSV for color segmentation
+        hsvImg = rgb2hsv(imgDouble);
 
-        % Step 5: Area filtering
-        candidateMask = bwareaopen(candidateMask, cfg.he.minArea);
+        % Hemorrhages are dark red:
+        % - Low value (dark)
+        % - Hue in red range (0-0.1 or 0.9-1.0)
+        % - Moderate saturation
 
-        % Remove too large
-        CC = bwconncomp(candidateMask);
-        for k = 1:CC.NumObjects
-            if numel(CC.PixelIdxList{k}) > cfg.he.maxArea
-                candidateMask(CC.PixelIdxList{k}) = false;
+        hue = hsvImg(:,:,1);
+        sat = hsvImg(:,:,2);
+        val = hsvImg(:,:,3);
+
+        % Red hue mask (wraps around 0/1)
+        redMask = (hue < 0.1) | (hue > 0.9);
+
+        % Dark regions
+        darkMask = val < 0.4;
+
+        % Moderate saturation
+        satMask = sat > 0.2;
+
+        % Combine criteria
+        hemorrhageCandidates = redMask & darkMask & satMask;
+
+        % Clean up with morphological operations
+        se = strel('disk', 3);
+        hemorrhageCandidates = imclose(hemorrhageCandidates, se);
+        hemorrhageCandidates = imopen(hemorrhageCandidates, se);
+
+        % Remove small objects
+        hemorrhageCandidates = bwareaopen(hemorrhageCandidates, p.Results.MinArea);
+
+        % Filter by area
+        stats = regionprops(hemorrhageCandidates, 'Area', 'Centroid', 'Perimeter');
+
+        if ~isempty(stats)
+            areas = [stats.Area];
+            areaMask = areas <= p.Results.MaxArea;
+
+            if any(areaMask)
+                validStats = stats(areaMask);
+                evidence.count = numel(validStats);
+                evidence.areas = [validStats.Area];
+                evidence.totalArea = sum(evidence.areas);
+                evidence.locations = reshape([validStats.Centroid], 2, [])';
+
+                % Create mask
+                evidence.mask = false(size(img, 1), size(img, 2));
+                labeled = bwlabel(hemorrhageCandidates);
+                for i = 1:numel(validStats)
+                    evidence.mask(labeled == find(areaMask, i, 'first')) = true;
+                end
+
+                % Confidence based on count and total area
+                evidence.confidence = min(1.0, (evidence.count / 5) + (evidence.totalArea / 10000));
             end
         end
-        CC = bwconncomp(candidateMask);
 
-        % Step 6: Score candidates
-        stats = regionprops(CC, gray, 'Centroid', 'Area', 'BoundingBox', 'MeanIntensity');
-        candidates = {};
-        for k = 1:numel(stats)
-            s = stats(k);
-            meanIntensity = s.MeanIntensity / 255;
-            conf = (1 - meanIntensity) * 0.8;
-            candidates{end+1} = struct( ...
-                'centroid_x', s.Centroid(1), ...
-                'centroid_y', s.Centroid(2), ...
-                'area', s.Area, ...
-                'bounding_box', s.BoundingBox, ...
-                'confidence', min(1, conf), ...
-                'type', 'HE_CANDIDATE'); %#ok<AGROW>
-        end
-
-        totalArea = sum(cellfun(@(c) c.area, candidates));
-        avgConf = 0;
-        if ~isempty(candidates)
-            avgConf = mean(cellfun(@(c) c.confidence, candidates));
-        end
-
-        result.candidates = candidates;
-        result.candidate_count = numel(candidates);
-        result.total_candidate_area = totalArea;
-        result.confidence = avgConf;
-        result.candidate_mask = candidateMask;
-        result.status = 'COMPLETED';
-
-    catch ME
-        result.status = 'DETECTION_FAILED';
-        result.error = ME.message;
+    catch
+        % Return empty evidence on error
+        evidence.count = 0;
+        evidence.mask = false(size(img, 1), size(img, 2));
+        evidence.locations = [];
+        evidence.areas = [];
+        evidence.totalArea = 0;
+        evidence.confidence = 0;
     end
 end

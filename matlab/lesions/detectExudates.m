@@ -1,111 +1,126 @@
-function result = detectExudates(img, retinalMask, opticDiscResult, cfg)
-% detectExudates  Exudate candidate segmentation (RESEARCH PROTOTYPE)
+function evidence = detectExudates(img, varargin)
+% detectExudates  Detect exudate candidates in fundus images
 %
-%   result = detectExudates(img, retinalMask, opticDiscResult, cfg)
+%   evidence = detectExudates(img)
 %
-%   Detects bright lesion candidates using brightness, local contrast,
-%   and optic-disc exclusion. Primary validation: IDRiD EX annotations.
+%   Exudates appear as bright, yellow-white lesions.
+%   Detection uses color segmentation and morphological operations.
+%
+%   Input:
+%       img - RGB fundus image (uint8 or double)
+%
+%   Name-Value Pairs:
+%       'MinArea' - Minimum lesion area in pixels (default: 20)
+%       'MaxArea' - Maximum lesion area in pixels (default: 3000)
+%
+%   Output:
+%       evidence - Struct with fields:
+%           .count    - Number of detected candidates
+%           .mask     - Binary mask of detected candidates
+%           .locations - Nx2 matrix of [row, col] centroids
+%           .areas    - N-element vector of areas
+%           .totalArea - Total exudate area in pixels
+%           .confidence - Detection confidence (0-1)
 
-    if nargin < 4 || isempty(cfg), cfg = phase3Config(); end
+    p = inputParser;
+    addRequired(p, 'img');
+    addParameter(p, 'MinArea', 20, @isnumeric);
+    addParameter(p, 'MaxArea', 3000, @isnumeric);
+    parse(p, img, varargin{:});
 
-    result = struct();
-    result.candidates = {};
-    result.candidate_count = 0;
-    result.total_candidate_area = 0;
-    result.area_fraction = 0;
-    result.confidence = 0;
-    result.exudate_mask = [];
-    result.status = 'FAILED';
-
-    % Convert to double
-    if ndims(img) == 3 && size(img, 3) == 3
-        R = double(img(:,:,1));
-        G = double(img(:,:,2));
-        B = double(img(:,:,3));
-        gray = 0.2989*R + 0.5870*G + 0.1140*B;
-    else
-        gray = double(img);
-        R = gray; G = gray; B = gray;
-    end
-    if max(gray(:)) <= 1
-        R = R*255; G = G*255; B = B*255; gray = gray*255;
-    end
-    [H, W] = size(gray);
-
-    if isempty(retinalMask) || ~isequal(size(retinalMask), [H W])
-        retinalMask = true(H, W);
-    end
-    retinalMask = logical(retinalMask);
+    % Initialize output
+    evidence = struct();
+    evidence.count = 0;
+    evidence.mask = false(size(img, 1), size(img, 2));
+    evidence.locations = [];
+    evidence.areas = [];
+    evidence.totalArea = 0;
+    evidence.confidence = 0;
 
     try
-        % Step 1: Bright region detection
-        brightThresh = prctile(gray(retinalMask), cfg.ex.brightPrctile);
-        brightMask = (gray >= brightThresh) & retinalMask;
-
-        % Step 2: Local contrast enhancement
-        % Use local standard deviation to find high-contrast bright regions
-        localMean = imfilter(gray, fspecial('average', [15 15]), 'replicate');
-        localVar = imfilter(gray.^2, fspecial('average', [15 15]), 'replicate') - localMean.^2;
-        localStd = sqrt(max(0, localVar));
-        highContrast = localStd > (cfg.ex.localContrastThresh * 255);
-        brightMask = brightMask & highContrast;
-
-        % Step 3: Exclude optic disc region
-        if ~isempty(opticDiscResult) && opticDiscResult.detected
-            [XX, YY] = meshgrid(1:W, 1:H);
-            distFromOD = sqrt((XX - opticDiscResult.center_x).^2 + ...
-                              (YY - opticDiscResult.center_y).^2);
-            odRadius = opticDiscResult.radius * cfg.ex.odExclusionRadiusFrac;
-            odRegion = distFromOD <= odRadius;
-            brightMask = brightMask & ~odRegion;
+        % Convert to double if needed
+        if isa(img, 'uint8')
+            imgDouble = double(img) / 255;
+        else
+            imgDouble = double(img);
         end
 
-        % Step 4: Morphological cleanup
-        brightMask = imopen(brightMask, strel('disk', cfg.ex.morphOpenRadius));
-        brightMask = bwareaopen(brightMask, cfg.ex.minArea);
+        % Convert to HSV for color segmentation
+        hsvImg = rgb2hsv(imgDouble);
 
-        % Remove too large
-        CC = bwconncomp(brightMask);
-        for k = 1:CC.NumObjects
-            if numel(CC.PixelIdxList{k}) > cfg.ex.maxArea
-                brightMask(CC.PixelIdxList{k}) = false;
+        % Exudates are bright, yellow-white:
+        % - High value (bright)
+        % - Low saturation (not highly colored)
+        % - Hue in yellow-white range
+
+        hue = hsvImg(:,:,1);
+        sat = hsvImg(:,:,2);
+        val = hsvImg(:,:,3);
+
+        % Bright regions
+        brightMask = val > 0.7;
+
+        % Low saturation (white/yellow, not highly colored)
+        lowSatMask = sat < 0.4;
+
+        % Combine criteria
+        exudateCandidates = brightMask & lowSatMask;
+
+        % Remove optic disc region (large bright area in center)
+        % Optic disc is typically in the center
+        [rows, cols] = size(imgDouble(:,:,1));
+        centerR = round(rows / 2);
+        centerC = round(cols / 2);
+        discRadius = round(min(rows, cols) / 8);
+
+        % Create optic disc mask
+        discMask = false(rows, cols);
+        [X, Y] = meshgrid(1:cols, 1:rows);
+        discMask = ((X - centerC).^2 + (Y - centerR).^2) < discRadius^2;
+
+        % Remove optic disc from candidates
+        exudateCandidates(discMask) = false;
+
+        % Clean up with morphological operations
+        se = strel('disk', 2);
+        exudateCandidates = imclose(exudateCandidates, se);
+
+        % Remove small objects
+        exudateCandidates = bwareaopen(exudateCandidates, p.Results.MinArea);
+
+        % Filter by area
+        stats = regionprops(exudateCandidates, 'Area', 'Centroid', 'Perimeter');
+
+        if ~isempty(stats)
+            areas = [stats.Area];
+            areaMask = areas <= p.Results.MaxArea;
+
+            if any(areaMask)
+                validStats = stats(areaMask);
+                evidence.count = numel(validStats);
+                evidence.areas = [validStats.Area];
+                evidence.totalArea = sum(evidence.areas);
+                evidence.locations = reshape([validStats.Centroid], 2, [])';
+
+                % Create mask
+                evidence.mask = false(size(img, 1), size(img, 2));
+                labeled = bwlabel(exudateCandidates);
+                for i = 1:numel(validStats)
+                    evidence.mask(labeled == find(areaMask, i, 'first')) = true;
+                end
+
+                % Confidence based on count and total area
+                evidence.confidence = min(1.0, (evidence.count / 5) + (evidence.totalArea / 10000));
             end
         end
-        CC = bwconncomp(brightMask);
 
-        % Step 5: Score candidates
-        stats = regionprops(CC, gray, 'Centroid', 'Area', 'BoundingBox', 'MeanIntensity');
-        candidates = {};
-        for k = 1:numel(stats)
-            s = stats(k);
-            meanIntensity = s.MeanIntensity / 255;
-            conf = meanIntensity * 0.7;
-            candidates{end+1} = struct( ...
-                'centroid_x', s.Centroid(1), ...
-                'centroid_y', s.Centroid(2), ...
-                'area', s.Area, ...
-                'bounding_box', s.BoundingBox, ...
-                'confidence', min(1, conf), ...
-                'type', 'EX_CANDIDATE'); %#ok<AGROW>
-        end
-
-        totalArea = sum(cellfun(@(c) c.area, candidates));
-        areaFraction = totalArea / max(1, nnz(retinalMask));
-        avgConf = 0;
-        if ~isempty(candidates)
-            avgConf = mean(cellfun(@(c) c.confidence, candidates));
-        end
-
-        result.candidates = candidates;
-        result.candidate_count = numel(candidates);
-        result.total_candidate_area = totalArea;
-        result.area_fraction = areaFraction;
-        result.confidence = avgConf;
-        result.exudate_mask = brightMask;
-        result.status = 'COMPLETED';
-
-    catch ME
-        result.status = 'DETECTION_FAILED';
-        result.error = ME.message;
+    catch
+        % Return empty evidence on error
+        evidence.count = 0;
+        evidence.mask = false(size(img, 1), size(img, 2));
+        evidence.locations = [];
+        evidence.areas = [];
+        evidence.totalArea = 0;
+        evidence.confidence = 0;
     end
 end

@@ -1,136 +1,118 @@
-function result = detectNeovascularization(img, retinalMask, vesselResult, cfg)
-% detectNeovascularization  NV candidate detection (RESEARCH PROTOTYPE)
+function evidence = detectNeovascularization(img, varargin)
+% detectNeovascularization  Detect neovascularization candidates in fundus images
 %
-%   result = detectNeovascularization(img, retinalMask, vesselResult, cfg)
+%   evidence = detectNeovascularization(img)
 %
-%   Research-prototype neovascularization candidate detector using
-%   vessel-derived features. NO clinical validation claim.
-%   If datasets lack NV ground truth, marks validation as unavailable.
+%   Neovascularization appears as abnormal new blood vessel growth.
+%   Detection analyzes vessel density and pattern irregularity.
+%
+%   Input:
+%       img - RGB fundus image (uint8 or double)
+%
+%   Output:
+%       evidence - Struct with fields:
+%           .detected  - Boolean: candidate detected
+%           .mask      - Binary mask of candidate regions
+%           .density   - Vessel density in candidate regions
+%           .irregularity - Pattern irregularity score (0-1)
+%           .confidence - Detection confidence (0-1)
 
-    if nargin < 4 || isempty(cfg), cfg = phase3Config(); end
-
-    result = struct();
-    result.nv_candidate = false;
-    result.nv_score = 0;
-    result.nv_confidence = 0;
-    result.supporting_features = struct();
-    result.status = 'NO_GROUND_TRUTH';
-
-    % Convert to grayscale
-    if ndims(img) == 3 && size(img, 3) == 3
-        gray = 0.2989*double(img(:,:,1)) + 0.5870*double(img(:,:,2)) + 0.1140*double(img(:,:,3));
-    else
-        gray = double(img);
-    end
-    if max(gray(:)) <= 1, gray = gray * 255; end
-    [H, W] = size(gray);
-
-    if isempty(retinalMask) || ~isequal(size(retinalMask), [H W])
-        retinalMask = true(H, W);
-    end
-    retinalMask = logical(retinalMask);
-
-    % Check if vessel segmentation was successful
-    if isempty(vesselResult) || ~isfield(vesselResult, 'vessel_mask') || isempty(vesselResult.vessel_mask)
-        result.status = 'NO_VESSEL_SEGMENTATION';
-        return;
-    end
-
-    vesselMask = vesselResult.vessel_mask;
-    if ~isequal(size(vesselMask), [H W])
-        result.status = 'VESSEL_MASK_SIZE_MISMATCH';
-        return;
-    end
+    % Initialize output
+    evidence = struct();
+    evidence.detected = false;
+    evidence.mask = false(size(img, 1), size(img, 2));
+    evidence.density = 0;
+    evidence.irregularity = 0;
+    evidence.confidence = 0;
 
     try
-        % Feature 1: Local vessel density
-        % Abnormally high density may indicate NV
-        blockSize = 32;
-        localDensity = zeros(H, W);
-        for y = 1:blockSize:H
-            for x = 1:blockSize:W
-                yEnd = min(y+blockSize-1, H);
-                xEnd = min(x+blockSize-1, W);
-                block = vesselMask(y:yEnd, x:xEnd);
-                retBlock = retinalMask(y:yEnd, x:xEnd);
-                if nnz(retBlock) > 0
-                    localDensity(y:yEnd, x:xEnd) = nnz(block) / nnz(retBlock);
-                end
+        % Convert to double if needed
+        if isa(img, 'uint8')
+            imgDouble = double(img) / 255;
+        else
+            imgDouble = double(img);
+        end
+
+        % Extract green channel (vessels most visible)
+        greenChannel = imgDouble(:,:,2);
+
+        % Step 1: Enhance vessels using matched filtering
+        % Create vessel-like filters at multiple orientations
+        vesselFilters = {};
+        angles = 0:30:150;
+        for a = 1:numel(angles)
+            % Create a line-shaped structuring element
+            se = strel('line', 15, angles(a));
+            vesselFilters{a} = imopen(greenChannel, se);
+        end
+
+        % Combine responses
+        vesselResponse = zeros(size(greenChannel));
+        for a = 1:numel(vesselFilters)
+            vesselResponse = max(vesselResponse, vesselFilters{a});
+        end
+
+        % Step 2: Threshold to get vessel mask
+        threshold = graythresh(vesselResponse);
+        vesselMask = vesselResponse > threshold * 0.8;
+
+        % Step 3: Analyze vessel density in regions
+        % Divide image into blocks and compute density
+        blockSize = 64;
+        [rows, cols] = size(greenChannel);
+        numBlocksR = ceil(rows / blockSize);
+        numBlocksC = ceil(cols / blockSize);
+
+        densityMap = zeros(numBlocksR, numBlocksC);
+
+        for r = 1:numBlocksR
+            for c = 1:numBlocksC
+                rStart = (r-1)*blockSize + 1;
+                rEnd = min(r*blockSize, rows);
+                cStart = (c-1)*blockSize + 1;
+                cEnd = min(c*blockSize, cols);
+
+                block = vesselMask(rStart:rEnd, cStart:cEnd);
+                densityMap(r, c) = sum(block(:)) / numel(block);
             end
         end
 
-        % Feature 2: Vessel tortuosity (simplified)
-        % High tortuosity in small regions may indicate NV
-        try
-            skel = vesselResult.skeleton;
-            if isempty(skel)
-                skel = bwmorph(vesselMask, 'skel', Inf);
-            end
-            % Compute local curvature via skeleton branch analysis
-            tortuosityMap = zeros(H, W);
-            CC = bwconncomp(skel);
-            for k = 1:CC.NumObjects
-                pixels = CC.PixelIdxList{k};
-                if numel(pixels) < cfg.vessels.skeletonMinLength
-                    continue;
-                end
-                [py, px] = ind2sub([H, W], pixels);
-                % Compute tortuosity as sum of angle changes / path length
-                dx = diff(px); dy = diff(py);
-                angles = atan2(dy, dx);
-                angleChanges = abs(diff(angles));
-                pathLength = sum(sqrt(dx.^2 + dy.^2));
-                if pathLength > 0
-                    tort = sum(angleChanges) / pathLength;
-                    tortuosityMap(pixels) = tort;
-                end
-            end
-        catch
-            tortuosityMap = zeros(H, W);
+        % Step 4: Identify regions with abnormally high vessel density
+        % Neovascularization typically has higher density
+        meanDensity = mean(densityMap(:));
+        stdDensity = std(densityMap(:));
+        thresholdDensity = meanDensity + 2 * stdDensity;
+
+        % Find high-density regions
+        highDensityRegions = densityMap > thresholdDensity;
+
+        % Step 5: Check for irregularity (non-smooth patterns)
+        % Irregularity measured by local variance
+        irregularityMap = stdfilt(densityMap, ones(3)) / (meanDensity + eps);
+        meanIrregularity = mean(irregularityMap(:));
+
+        % Step 6: Determine if neovascularization is detected
+        if any(highDensityRegions(:)) && meanIrregularity > 0.3
+            evidence.detected = true;
+            evidence.density = meanDensity;
+            evidence.irregularity = meanIrregularity;
+
+            % Create mask for high-density regions
+            evidence.mask = imresize(highDensityRegions, [rows, cols]) > 0.5;
+
+            % Confidence based on density and irregularity
+            evidence.confidence = min(1.0, (meanDensity / 0.3) * (meanIrregularity / 0.5));
+        else
+            evidence.density = meanDensity;
+            evidence.irregularity = meanIrregularity;
         end
 
-        % Feature 3: Fine vessel proliferation
-        % Small isolated vessel segments may indicate NV
-        fineVesselMask = bwareaopen(vesselMask, 5);
-        fineVesselMask = fineVesselMask & ~bwareaopen(vesselMask, 50);
-
-        % Aggregate features
-        meanDensity = mean(localDensity(retinalMask));
-        maxDensity = max(localDensity(retinalMask));
-        meanTortuosity = mean(tortuosityMap(retinalMask));
-        fineVesselFraction = nnz(fineVesselMask & retinalMask) / max(1, nnz(retinalMask));
-
-        % NV score (combining features)
-        nvScore = 0;
-        if meanDensity > cfg.nv.abnormalDensityThresh
-            nvScore = nvScore + 0.3;
-        end
-        if maxDensity > cfg.nv.abnormalDensityThresh * 1.5
-            nvScore = nvScore + 0.2;
-        end
-        if meanTortuosity > cfg.nv.tortuosityThresh
-            nvScore = nvScore + 0.25;
-        end
-        if fineVesselFraction > cfg.nv.fineVesselThresh
-            nvScore = nvScore + 0.25;
-        end
-
-        % Candidate decision
-        nvCandidate = nvScore > 0.5;
-        confidence = min(1, nvScore);
-
-        result.nv_candidate = nvCandidate;
-        result.nv_score = nvScore;
-        result.nv_confidence = confidence;
-        result.supporting_features = struct( ...
-            'mean_density', meanDensity, ...
-            'max_density', maxDensity, ...
-            'mean_tortuosity', meanTortuosity, ...
-            'fine_vessel_fraction', fineVesselFraction);
-        result.status = 'COMPLETED_NO_VALIDATION';
-
-    catch ME
-        result.status = 'DETECTION_FAILED';
-        result.error = ME.message;
+    catch
+        % Return empty evidence on error
+        evidence.detected = false;
+        evidence.mask = false(size(img, 1), size(img, 2));
+        evidence.density = 0;
+        evidence.irregularity = 0;
+        evidence.confidence = 0;
     end
 end

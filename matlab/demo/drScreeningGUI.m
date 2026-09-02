@@ -117,14 +117,20 @@ function drScreeningGUI()
 
     % Explanation / heatmap
     uicontrol(resPanel, 'Style', 'pushbutton', ...
-        'Position', [10, 240, 120, 35], ...
-        'String', 'Show Heatmap', ...
+        'Position', [10, 240, 100, 35], ...
+        'String', 'Heatmap', ...
         'FontSize', 10, ...
         'Callback', @(src,evt) showHeatmap());
 
     uicontrol(resPanel, 'Style', 'pushbutton', ...
-        'Position', [140, 240, 120, 35], ...
-        'String', 'Show Report', ...
+        'Position', [120, 240, 100, 35], ...
+        'String', 'Lesions', ...
+        'FontSize', 10, ...
+        'Callback', @(src,evt) showLesionEvidence());
+
+    uicontrol(resPanel, 'Style', 'pushbutton', ...
+        'Position', [230, 240, 100, 35], ...
+        'String', 'Report', ...
         'FontSize', 10, ...
         'Callback', @(src,evt) showReport());
 
@@ -340,6 +346,98 @@ function drScreeningGUI()
             statusText.String = 'Grad-CAM heatmap displayed.';
         catch ME
             statusText.String = sprintf('Heatmap FAILED: %s', ME.message);
+        end
+    end
+
+    function showLesionEvidence()
+        if isempty(state.currentImage)
+            statusText.String = 'Load an image first.';
+            return;
+        end
+
+        try
+            statusText.String = 'Extracting lesion evidence...';
+            drawnow;
+
+            evidence = extractLesionEvidence(state.currentImage);
+
+            % Create evidence figure
+            fig = figure('Name', 'Lesion Evidence', 'NumberTitle', 'off', ...
+                'Position', [150, 150, 900, 400]);
+
+            % Original image
+            subplot(2, 3, 1);
+            imshow(state.currentImage);
+            title('Original Fundus');
+
+            % Microaneurysm mask
+            subplot(2, 3, 2);
+            imshow(state.currentImage);
+            hold on;
+            if evidence.microaneurysms.count > 0
+                h = imagesc(evidence.microaneurysms.mask);
+                set(h, 'AlphaData', 0.4);
+            end
+            hold off;
+            title(sprintf('Microaneurysms: %d', evidence.microaneurysms.count));
+
+            % Hemorrhage mask
+            subplot(2, 3, 3);
+            imshow(state.currentImage);
+            hold on;
+            if evidence.hemorrhages.count > 0
+                h = imagesc(evidence.hemorrhages.mask);
+                set(h, 'AlphaData', 0.4);
+            end
+            hold off;
+            title(sprintf('Hemorrhages: %d', evidence.hemorrhages.count));
+
+            % Exudate mask
+            subplot(2, 3, 4);
+            imshow(state.currentImage);
+            hold on;
+            if evidence.exudates.count > 0
+                h = imagesc(evidence.exudates.mask);
+                set(h, 'AlphaData', 0.4);
+            end
+            hold off;
+            title(sprintf('Exudates: %d', evidence.exudates.count));
+
+            % Neovascularization
+            subplot(2, 3, 5);
+            imshow(state.currentImage);
+            hold on;
+            if evidence.neovascularization.detected
+                h = imagesc(evidence.neovascularization.mask);
+                set(h, 'AlphaData', 0.4);
+            end
+            hold off;
+            title(sprintf('Neovascularization: %s', string(evidence.neovascularization.detected)));
+
+            % Summary
+            subplot(2, 3, 6);
+            axis off;
+            summaryText = { ...
+                'LESION EVIDENCE SUMMARY', ...
+                '', ...
+                sprintf('Severity: %s', evidence.severity), ...
+                sprintf('Total lesions: %d', evidence.totalLesions), ...
+                '', ...
+                sprintf('Microaneurysms: %d', evidence.microaneurysms.count), ...
+                sprintf('Hemorrhages: %d', evidence.hemorrhages.count), ...
+                sprintf('Exudates: %d', evidence.exudates.count), ...
+                sprintf('Neovascularization: %s', string(evidence.neovascularization.detected)), ...
+                '', ...
+                evidence.summary ...
+            };
+            text(0.1, 0.9, summaryText, 'FontSize', 9, 'VerticalAlignment', 'top');
+            title('Evidence Summary');
+
+            sgtitle('Lesion-Level Evidence Analysis', 'FontSize', 12, 'FontWeight', 'bold');
+
+            statusText.String = sprintf('Lesion evidence: %s (%d total)', evidence.severity, evidence.totalLesions);
+        catch ME
+            statusText.String = sprintf('Lesion evidence FAILED: %s', ME.message);
         end
     end
 
