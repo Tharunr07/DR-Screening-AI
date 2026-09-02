@@ -578,13 +578,6 @@ function drScreeningGUIv2()
         end
     end
 
-        catch ME
-            statusIndicator.String = 'Screening FAILED';
-            statusIndicator.ForegroundColor = [1 0.2 0.2];
-            errordlg(sprintf('Screening failed: %s', ME.message), 'Error');
-        end
-    end
-
     function addToHistory(result)
         state.screeningCount = state.screeningCount + 1;
         screenID = sprintf('DR%03d', state.screeningCount);
