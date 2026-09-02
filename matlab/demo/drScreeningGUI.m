@@ -322,11 +322,12 @@ function drScreeningGUI()
             topClass = state.currentResult.prediction.grade + 1;
 
             % Overlay
-            figure('Name', 'Explainability Heatmap', 'NumberTitle', 'off');
+            fig = figure('Name', 'Explainability Heatmap', 'NumberTitle', 'off');
             imshow(state.currentImage);
             hold on;
-            imagesc(heatmap, [0, 1], 'AlphaData', 0.4);
-            colormap jet;
+            h = imagesc(heatmap, [0, 1]);
+            set(h, 'AlphaData', 0.4);
+            colormap(fig, jet);
             colorbar;
             title(sprintf('Attention Heatmap (Top class: G%d)', topClass-1));
             hold off;
