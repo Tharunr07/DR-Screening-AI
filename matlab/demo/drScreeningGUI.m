@@ -312,27 +312,32 @@ function drScreeningGUI()
         end
 
         try
-            % Gradient magnitude as attention heatmap
-            grayImg = rgb2gray(state.currentImage);
-            [gx, gy] = gradient(double(grayImg));
-            heatmap = sqrt(gx.^2 + gy.^2);
-            heatmap = mat2gray(heatmap);
+            % Formal Grad-CAM
+            imgResized = imresize(state.currentImage, state.cfgTL.image.size, 'bicubic');
+            meanRGB = [0.485 0.456 0.406];
+            stdRGB = [0.229 0.224 0.225];
+            imgNorm = double(imgResized) / 255;
+            for c = 1:3
+                imgNorm(:,:,c) = (imgNorm(:,:,c) - meanRGB(c)) / stdRGB(c);
+            end
+
+            [cam, ~, ~] = gradcamSimple(state.trainedNet, imgNorm);
 
             % Get top class from stored results
             topClass = state.currentResult.prediction.grade + 1;
 
             % Overlay
-            fig = figure('Name', 'Explainability Heatmap', 'NumberTitle', 'off');
+            fig = figure('Name', 'Grad-CAM Explainability', 'NumberTitle', 'off');
             imshow(state.currentImage);
             hold on;
-            h = imagesc(heatmap, [0, 1]);
+            h = imagesc(cam, [0, 1]);
             set(h, 'AlphaData', 0.4);
             colormap(fig, jet);
             colorbar;
-            title(sprintf('Attention Heatmap (Top class: G%d)', topClass-1));
+            title(sprintf('Grad-CAM (Predicted: G%d, %s)', topClass-1, state.currentResult.prediction.label));
             hold off;
 
-            statusText.String = 'Heatmap displayed.';
+            statusText.String = 'Grad-CAM heatmap displayed.';
         catch ME
             statusText.String = sprintf('Heatmap FAILED: %s', ME.message);
         end
