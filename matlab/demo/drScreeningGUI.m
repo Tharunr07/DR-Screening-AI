@@ -220,7 +220,8 @@ function drScreeningGUI()
             brightness = mean(gray(:));
             contrast = std(double(gray(:)));
             lap = fspecial('laplacian');
-            blurVar = var(conv2(double(gray), lap, 'same')(:));
+            lapResult = conv2(double(gray), lap, 'same');
+            blurVar = var(lapResult(:));
 
             if brightness < 40 || brightness > 220 || contrast < 20 || blurVar < 100
                 qualityText.String = sprintf('Quality: BORDERLINE (B:%.0f C:%.0f Bv:%.0f)', brightness, contrast, blurVar);
