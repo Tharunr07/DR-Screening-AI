@@ -1,0 +1,599 @@
+function drScreeningGUIv2()
+% drScreeningGUIv2  Production-grade DR Screening GUI
+%
+%   Usage: drScreeningGUIv2
+%
+%   Features:
+%       - Professional header with system status
+%       - Image quality assessment with recapture guidance
+%       - One-click screening workflow
+%       - Structured evidence panel
+%       - Clinical report generation
+%       - Export to text/CSV
+%       - Screening history log
+
+    % Create main figure
+    fig = figure('Name', 'AI Diabetic Retinopathy Screening System', ...
+        'NumberTitle', 'off', ...
+        'MenuBar', 'none', ...
+        'ToolBar', 'none', ...
+        'Position', [50, 50, 1400, 850], ...
+        'Color', [0.95 0.95 0.97], ...
+        'Resize', 'on');
+
+    % State
+    state = struct();
+    state.modelLoaded = false;
+    state.currentImage = [];
+    state.currentResult = [];
+    state.currentImagePath = '';
+    state.screeningHistory = {};
+    state.screeningCount = 0;
+
+    % --- HEADER ---
+    headerPanel = uipanel(fig, 'Position', [0, 0.93, 1, 0.07], ...
+        'BorderType', 'none', ...
+        'BackgroundColor', [0.15 0.25 0.45]);
+
+    uicontrol(headerPanel, 'Style', 'text', ...
+        'Position', [20, 5, 600, 30], ...
+        'String', 'AI DIABETIC RETINOPATHY SCREENING SYSTEM', ...
+        'FontSize', 16, ...
+        'FontWeight', 'bold', ...
+        'ForegroundColor', 'white', ...
+        'BackgroundColor', [0.15 0.25 0.45], ...
+        'HorizontalAlignment', 'left');
+
+    statusIndicator = uicontrol(headerPanel, 'Style', 'text', ...
+        'Position', [1100, 5, 280, 30], ...
+        'String', 'System: Ready', ...
+        'FontSize', 11, ...
+        'ForegroundColor', [0.8 0.9 0.8], ...
+        'BackgroundColor', [0.15 0.25 0.45], ...
+        'HorizontalAlignment', 'right');
+
+    % --- LEFT COLUMN: Image + Quality ---
+    leftPanel = uipanel(fig, 'Position', [0.01, 0.01, 0.42, 0.91], ...
+        'Title', '', ...
+        'FontSize', 10, ...
+        'BackgroundColor', [0.95 0.95 0.97]);
+
+    % Image display
+    imgPanel = uipanel(leftPanel, 'Position', [0.02, 0.35, 0.96, 0.63], ...
+        'Title', 'Fundus Image', ...
+        'FontSize', 11, ...
+        'FontWeight', 'bold');
+
+    imgAxes = axes(imgPanel, 'Position', [0.05, 0.1, 0.9, 0.85]);
+    title(imgAxes, 'No image loaded', 'FontSize', 11);
+    axis(imgAxes, 'off');
+
+    % Quality assessment
+    qualityPanel = uipanel(leftPanel, 'Position', [0.02, 0.02, 0.96, 0.31], ...
+        'Title', 'Image Quality Assessment', ...
+        'FontSize', 11, ...
+        'FontWeight', 'bold');
+
+    qualityGrade = uicontrol(qualityPanel, 'Style', 'text', ...
+        'Position', [10, 130, 200, 30], ...
+        'String', 'Quality: --', ...
+        'FontSize', 14, ...
+        'FontWeight', 'bold', ...
+        'HorizontalAlignment', 'left');
+
+    qualityDetails = uicontrol(qualityPanel, 'Style', 'text', ...
+        'Position', [10, 95, 500, 30], ...
+        'String', 'Brightness: -- | Contrast: -- | Sharpness: --', ...
+        'FontSize', 10, ...
+        'HorizontalAlignment', 'left');
+
+    qualityGuidance = uicontrol(qualityPanel, 'Style', 'text', ...
+        'Position', [10, 55, 500, 35], ...
+        'String', '', ...
+        'FontSize', 10, ...
+        'ForegroundColor', [0.8 0.4 0], ...
+        'HorizontalAlignment', 'left');
+
+    qualityBar = uicontrol(qualityPanel, 'Style', 'text', ...
+        'Position', [10, 10, 500, 25], ...
+        'String', '', ...
+        'FontSize', 9, ...
+        'ForegroundColor', [0.4 0.4 0.4], ...
+        'HorizontalAlignment', 'left');
+
+    % --- MIDDLE COLUMN: Results ---
+    midPanel = uipanel(fig, 'Position', [0.44, 0.01, 0.28, 0.91], ...
+        'Title', '', ...
+        'FontSize', 10, ...
+        'BackgroundColor', [0.95 0.95 0.97]);
+
+    % Screening result header
+    resultHeader = uipanel(midPanel, 'Position', [0.03, 0.72, 0.94, 0.26], ...
+        'Title', 'Screening Result', ...
+        'FontSize', 11, ...
+        'FontWeight', 'bold');
+
+    gradeText = uicontrol(resultHeader, 'Style', 'text', ...
+        'Position', [10, 100, 250, 40], ...
+        'String', 'Grade: --', ...
+        'FontSize', 18, ...
+        'FontWeight', 'bold', ...
+        'ForegroundColor', [0 0.5 0], ...
+        'HorizontalAlignment', 'center');
+
+    refText = uicontrol(resultHeader, 'Style', 'text', ...
+        'Position', [10, 60, 250, 35], ...
+        'String', 'Referable: --', ...
+        'FontSize', 14, ...
+        'FontWeight', 'bold', ...
+        'HorizontalAlignment', 'center');
+
+    confText = uicontrol(resultHeader, 'Style', 'text', ...
+        'Position', [10, 25, 250, 30], ...
+        'String', 'Confidence: --', ...
+        'FontSize', 12, ...
+        'HorizontalAlignment', 'center');
+
+    riskText = uicontrol(resultHeader, 'Style', 'text', ...
+        'Position', [10, 0, 250, 25], ...
+        'String', 'Risk: --', ...
+        'FontSize', 11, ...
+        'FontWeight', 'bold', ...
+        'HorizontalAlignment', 'center');
+
+    % Evidence panel
+    evidencePanel = uipanel(midPanel, 'Position', [0.03, 0.38, 0.94, 0.32], ...
+        'Title', 'Clinical Evidence', ...
+        'FontSize', 11, ...
+        'FontWeight', 'bold');
+
+    evidenceMA = uicontrol(evidencePanel, 'Style', 'text', ...
+        'Position', [10, 110, 280, 25], ...
+        'String', 'Microaneurysms: --', ...
+        'FontSize', 10, ...
+        'HorizontalAlignment', 'left');
+
+    evidenceHem = uicontrol(evidencePanel, 'Style', 'text', ...
+        'Position', [10, 85, 280, 25], ...
+        'String', 'Hemorrhages: --', ...
+        'FontSize', 10, ...
+        'HorizontalAlignment', 'left');
+
+    evidenceExu = uicontrol(evidencePanel, 'Style', 'text', ...
+        'Position', [10, 60, 280, 25], ...
+        'String', 'Exudates: --', ...
+        'FontSize', 10, ...
+        'HorizontalAlignment', 'left');
+
+    evidenceNV = uicontrol(evidencePanel, 'Style', 'text', ...
+        'Position', [10, 35, 280, 25], ...
+        'String', 'Neovascularization: --', ...
+        'FontSize', 10, ...
+        'HorizontalAlignment', 'left');
+
+    evidenceSummary = uicontrol(evidencePanel, 'Style', 'text', ...
+        'Position', [10, 5, 280, 25], ...
+        'String', 'Overall: --', ...
+        'FontSize', 10, ...
+        'FontWeight', 'bold', ...
+        'HorizontalAlignment', 'left');
+
+    % Class probabilities
+    probPanel = uipanel(midPanel, 'Position', [0.03, 0.02, 0.94, 0.34], ...
+        'Title', 'DR Grade Probabilities', ...
+        'FontSize', 10);
+
+    probAxes = axes(probPanel, 'Position', [0.12, 0.1, 0.82, 0.85]);
+
+    % --- RIGHT COLUMN: Actions + History ---
+    rightPanel = uipanel(fig, 'Position', [0.73, 0.01, 0.26, 0.91], ...
+        'Title', '', ...
+        'FontSize', 10, ...
+        'BackgroundColor', [0.95 0.95 0.97]);
+
+    % Action buttons
+    actionPanel = uipanel(rightPanel, 'Position', [0.03, 0.65, 0.94, 0.33], ...
+        'Title', 'Actions', ...
+        'FontSize', 11, ...
+        'FontWeight', 'bold');
+
+    uicontrol(actionPanel, 'Style', 'pushbutton', ...
+        'Position', [10, 175, 250, 40], ...
+        'String', 'Load Model', ...
+        'FontSize', 11, ...
+        'FontWeight', 'bold', ...
+        'Callback', @(src,evt) loadModel());
+
+    uicontrol(actionPanel, 'Style', 'pushbutton', ...
+        'Position', [10, 130, 250, 40], ...
+        'String', 'Upload Fundus Image', ...
+        'FontSize', 11, ...
+        'FontWeight', 'bold', ...
+        'Callback', @(src,evt) uploadImage());
+
+    uicontrol(actionPanel, 'Style', 'pushbutton', ...
+        'Position', [10, 85, 250, 40], ...
+        'String', 'Run Screening', ...
+        'FontSize', 12, ...
+        'FontWeight', 'bold', ...
+        'BackgroundColor', [0.85, 0.95, 0.85], ...
+        'Callback', @(src,evt) runScreening());
+
+    uicontrol(actionPanel, 'Style', 'pushbutton', ...
+        'Position', [10, 40, 120, 35], ...
+        'String', 'Export', ...
+        'FontSize', 10, ...
+        'Callback', @(src,evt) exportReport());
+
+    uicontrol(actionPanel, 'Style', 'pushbutton', ...
+        'Position', [140, 40, 120, 35], ...
+        'String', 'Reset', ...
+        'FontSize', 10, ...
+        'Callback', @(src,evt) resetAll());
+
+    % Screening history
+    historyPanel = uipanel(rightPanel, 'Position', [0.03, 0.02, 0.94, 0.61], ...
+        'Title', 'Screening History', ...
+        'FontSize', 11, ...
+        'FontWeight', 'bold');
+
+    historyList = uicontrol(historyPanel, 'Style', 'listbox', ...
+        'Position', [5, 5, 265, 195], ...
+        'FontSize', 9, ...
+        'Max', 100);
+
+    clearHistoryBtn = uicontrol(historyPanel, 'Style', 'pushbutton', ...
+        'Position', [5, -20, 265, 25], ...
+        'String', 'Clear History', ...
+        'FontSize', 9, ...
+        'Callback', @(src,evt) clearHistory());
+
+    % --- Callbacks ---
+
+    function loadModel()
+        try
+            statusIndicator.String = 'System: Loading model...';
+            statusIndicator.ForegroundColor = [1 0.8 0];
+            drawnow;
+
+            cfgTL = transferLearningConfig();
+            modelPath = fullfile(cfgTL.paths.modelDir, 'trainedNetTL.mat');
+            data = load(modelPath, 'trainedNetTL');
+            state.trainedNet = data.trainedNetTL;
+            state.modelLoaded = true;
+
+            statusIndicator.String = 'System: Model loaded';
+            statusIndicator.ForegroundColor = [0.2 0.8 0.2];
+        catch ME
+            statusIndicator.String = 'System: Model load FAILED';
+            statusIndicator.ForegroundColor = [1 0.2 0.2];
+            errordlg(sprintf('Failed to load model: %s', ME.message), 'Error');
+        end
+    end
+
+    function uploadImage()
+        [file, path] = uigetfile({'*.png;*.jpg;*.jpeg', 'Image files'}, 'Select Fundus Image');
+        if isequal(file, 0)
+            return;
+        end
+
+        fullPath = fullfile(path, file);
+        try
+            img = imread(fullPath);
+            state.currentImage = img;
+            state.currentImagePath = fullPath;
+
+            imshow(img, 'Parent', imgAxes);
+            title(imgAxes, file, 'FontSize', 10);
+
+            % Quality assessment
+            assessQuality(img, file);
+
+            statusIndicator.String = sprintf('Image: %s', file);
+            statusIndicator.ForegroundColor = [0.2 0.6 0.9];
+        catch ME
+            errordlg(sprintf('Failed to load image: %s', ME.message), 'Error');
+        end
+    end
+
+    function assessQuality(img, filename)
+        gray = rgb2gray(img);
+        brightness = mean(gray(:));
+        contrast = std(double(gray(:)));
+        lap = fspecial('laplacian');
+        lapResult = conv2(double(gray), lap, 'same');
+        blurVar = var(lapResult(:));
+
+        % Quality scoring
+        score = 0;
+        issues = {};
+
+        if brightness >= 40 && brightness <= 220
+            score = score + 1;
+        else
+            if brightness < 40
+                issues{end+1} = 'Too dark';
+            else
+                issues{end+1} = 'Too bright';
+            end
+        end
+
+        if contrast >= 20
+            score = score + 1;
+        else
+            issues{end+1} = 'Low contrast';
+        end
+
+        if blurVar >= 100
+            score = score + 1;
+        else
+            issues{end+1} = 'Blurry';
+        end
+
+        % Grade quality
+        if score == 3
+            grade = 'GOOD';
+            gradeColor = [0 0.5 0];
+            guidance = 'Image is suitable for AI screening.';
+        elseif score == 2
+            grade = 'BORDERLINE';
+            gradeColor = [0.8 0.5 0];
+            guidance = 'Image may affect accuracy. Consider recapture if possible.';
+        else
+            grade = 'POOR';
+            gradeColor = [0.8 0 0];
+            guidance = 'Image quality insufficient. Please recapture with improved illumination and focus.';
+        end
+
+        qualityGrade.String = sprintf('Quality: %s', grade);
+        qualityGrade.ForegroundColor = gradeColor;
+        qualityDetails.String = sprintf('Brightness: %.0f | Contrast: %.0f | Sharpness: %.0f', brightness, contrast, blurVar);
+        qualityGuidance.String = guidance;
+        qualityBar.String = sprintf('Score: %d/3 | Image: %s', score, filename);
+    end
+
+    function runScreening()
+        if ~state.modelLoaded
+            errordlg('Load model first.', 'Error');
+            return;
+        end
+        if isempty(state.currentImage)
+            errordlg('Upload an image first.', 'Error');
+            return;
+        end
+
+        try
+            statusIndicator.String = 'Screening in progress...';
+            statusIndicator.ForegroundColor = [1 0.8 0];
+            drawnow;
+
+            % Preprocess
+            cfgTL = transferLearningConfig();
+            imgR = imresize(state.currentImage, cfgTL.image.size, 'bicubic');
+            mn = [0.485 0.456 0.406]; sd = [0.229 0.224 0.225];
+            n = double(imgR)/255;
+            for c = 1:3
+                n(:,:,c) = (n(:,:,c) - mn(c)) / sd(c);
+            end
+
+            % Classify
+            [pred, scores] = classify(state.trainedNet, n);
+
+            gradeNum = double(pred) - 1;
+            grades = {'No DR', 'Mild NPDR', 'Moderate NPDR', 'Severe NPDR', 'Proliferative DR'};
+            refProb = sum(scores(3:5));
+            isReferable = refProb >= 0.1951;
+            confidence = max(scores);
+
+            % Lesion evidence
+            evidence = extractLesionEvidence(state.currentImage);
+
+            % Update UI
+            gradeText.String = sprintf('Grade %d: %s', gradeNum, grades{gradeNum+1});
+
+            if isReferable
+                refText.String = 'Referable: YES';
+                refText.ForegroundColor = [0.8 0 0];
+            else
+                refText.String = 'Referable: NO';
+                refText.ForegroundColor = [0 0.5 0];
+            end
+
+            confText.String = sprintf('Confidence: %.1f%%', confidence*100);
+
+            % Risk assessment
+            if gradeNum == 0
+                riskText.String = 'Risk: NONE';
+                riskText.ForegroundColor = [0 0.5 0];
+            elseif gradeNum <= 2
+                riskText.String = 'Risk: MODERATE';
+                riskText.ForegroundColor = [0.8 0.5 0];
+            else
+                riskText.String = 'Risk: HIGH';
+                riskText.ForegroundColor = [0.8 0 0];
+            end
+
+            % Evidence
+            if evidence.microaneurysms.count > 0
+                evidenceMA.String = sprintf('Microaneurysms: %d detected', evidence.microaneurysms.count);
+                evidenceMA.ForegroundColor = [0.8 0.4 0];
+            else
+                evidenceMA.String = 'Microaneurysms: None detected';
+                evidenceMA.ForegroundColor = [0 0.5 0];
+            end
+
+            if evidence.hemorrhages.count > 0
+                evidenceHem.String = sprintf('Hemorrhages: %d detected', evidence.hemorrhages.count);
+                evidenceHem.ForegroundColor = [0.8 0.4 0];
+            else
+                evidenceHem.String = 'Hemorrhages: None detected';
+                evidenceHem.ForegroundColor = [0 0.5 0];
+            end
+
+            if evidence.exudates.count > 0
+                evidenceExu.String = sprintf('Exudates: %d detected', evidence.exudates.count);
+                evidenceExu.ForegroundColor = [0.8 0.4 0];
+            else
+                evidenceExu.String = 'Exudates: None detected';
+                evidenceExu.ForegroundColor = [0 0.5 0];
+            end
+
+            if evidence.neovascularization.detected
+                evidenceNV.String = 'Neovascularization: DETECTED';
+                evidenceNV.ForegroundColor = [0.8 0 0];
+            else
+                evidenceNV.String = 'Neovascularization: None detected';
+                evidenceNV.ForegroundColor = [0 0.5 0];
+            end
+
+            evidenceSummary.String = sprintf('Severity: %s', evidence.severity);
+
+            % Class probabilities bar chart
+            axes(probAxes);
+            bar(scores, 'FaceColor', [0.3 0.6 0.9]);
+            set(probAxes, 'XTickLabel', {'G0','G1','G2','G3','G4'});
+            ylabel('Probability');
+            title('DR Grade Distribution');
+            ylim([0, 1]);
+
+            % Store result
+            state.currentResult = struct();
+            state.currentResult.grade = gradeNum;
+            state.currentResult.gradeName = grades{gradeNum+1};
+            state.currentResult.referable = isReferable;
+            state.currentResult.referableProb = refProb;
+            state.currentResult.confidence = confidence;
+            state.currentResult.scores = scores;
+            state.currentResult.evidence = evidence;
+            state.currentResult.timestamp = datestr(now, 'yyyy-mm-dd HH:MM:SS');
+
+            % Add to history
+            addToHistory(gradeNum, grades{gradeNum+1}, isReferable, confidence, evidence);
+
+            statusIndicator.String = sprintf('Screening complete: Grade %d (%s)', gradeNum, grades{gradeNum+1});
+            statusIndicator.ForegroundColor = [0.2 0.8 0.2];
+
+        catch ME
+            statusIndicator.String = 'Screening FAILED';
+            statusIndicator.ForegroundColor = [1 0.2 0.2];
+            errordlg(sprintf('Screening failed: %s', ME.message), 'Error');
+        end
+    end
+
+    function addToHistory(gradeNum, gradeName, isReferable, confidence, evidence)
+        state.screeningCount = state.screeningCount + 1;
+        screenID = sprintf('DR%03d', state.screeningCount);
+        timestamp = datestr(now, 'HH:MM:SS');
+        refStr = 'No';
+        if isReferable; refStr = 'Yes'; end
+
+        entry = sprintf('%s | %s | G%d %s | Ref:%s | %.0f%% | %s', ...
+            screenID, timestamp, gradeNum, gradeName, refStr, confidence*100, evidence.severity);
+
+        state.screeningHistory{end+1} = entry;
+        set(historyList, 'String', state.screeningHistory);
+        set(historyList, 'Value', numel(state.screeningHistory));
+    end
+
+    function clearHistory()
+        state.screeningHistory = {};
+        state.screeningCount = 0;
+        set(historyList, 'String', {});
+    end
+
+    function exportReport()
+        if isempty(state.currentResult)
+            errordlg('Run screening first.', 'Error');
+            return;
+        end
+
+        [file, path] = uiputfile({'*.txt', 'Text files'; '*.csv', 'CSV files'}, 'Export Report', ...
+            fullfile('results', 'reports', sprintf('report_%s.txt', datestr(now, 'yyyymmdd_HHMMSS'))));
+
+        if isequal(file, 0)
+            return;
+        end
+
+        fullPath = fullfile(path, file);
+        try
+            r = state.currentResult;
+            e = r.evidence;
+
+            fid = fopen(fullPath, 'w');
+            fprintf(fid, 'DR SCREENING REPORT\n');
+            fprintf(fid, '==================\n\n');
+            fprintf(fid, 'Date: %s\n', r.timestamp);
+            fprintf(fid, 'Image: %s\n\n', state.currentImagePath);
+
+            fprintf(fid, 'SCREENING RESULT\n');
+            fprintf(fid, '----------------\n');
+            fprintf(fid, 'DR Grade: %s (G%d)\n', r.gradeName, r.grade);
+            fprintf(fid, 'Referable DR: %s\n', string(r.referable));
+            fprintf(fid, 'Confidence: %.1f%%\n', r.confidence*100);
+            fprintf(fid, 'Referable Probability: %.4f\n', r.referableProb);
+            fprintf(fid, 'Threshold: 0.1951\n\n');
+
+            fprintf(fid, 'CLINICAL EVIDENCE\n');
+            fprintf(fid, '-----------------\n');
+            fprintf(fid, 'Microaneurysms: %d\n', e.microaneurysms.count);
+            fprintf(fid, 'Hemorrhages: %d\n', e.hemorrhages.count);
+            fprintf(fid, 'Exudates: %d\n', e.exudates.count);
+            fprintf(fid, 'Neovascularization: %s\n', string(e.neovascularization.detected));
+            fprintf(fid, 'Overall Severity: %s\n\n', e.severity);
+
+            fprintf(fid, 'RECOMMENDATION\n');
+            fprintf(fid, '--------------\n');
+            if r.referable
+                fprintf(fid, '→ Refer to ophthalmologist for clinical evaluation.\n\n');
+            else
+                fprintf(fid, '→ Routine follow-up. No immediate referral needed.\n\n');
+            end
+
+            fprintf(fid, 'DISCLAIMER\n');
+            fprintf(fid, '----------\n');
+            fprintf(fid, 'This is an AI-assisted screening result, not a definitive diagnosis.\n');
+            fprintf(fid, 'Clinical correlation and ophthalmologist review are recommended.\n');
+            fprintf(fid, 'Model: Transfer Learning ResNet-18 (Sens: 97.7%%, Spec: 85.4%%)\n');
+
+            fclose(fid);
+
+            statusIndicator.String = sprintf('Report exported: %s', file);
+            statusIndicator.ForegroundColor = [0.2 0.6 0.9];
+            msgbox(sprintf('Report exported to:\n%s', fullPath), 'Export Complete');
+        catch ME
+            errordlg(sprintf('Export failed: %s', ME.message), 'Error');
+        end
+    end
+
+    function resetAll()
+        state.currentImage = [];
+        state.currentResult = [];
+        state.currentImagePath = '';
+
+        cla(imgAxes);
+        title(imgAxes, 'No image loaded');
+        gradeText.String = 'Grade: --';
+        gradeText.ForegroundColor = [0 0.5 0];
+        refText.String = 'Referable: --';
+        refText.ForegroundColor = [0 0 0];
+        confText.String = 'Confidence: --';
+        riskText.String = 'Risk: --';
+        riskText.ForegroundColor = [0 0 0];
+
+        evidenceMA.String = 'Microaneurysms: --';
+        evidenceHem.String = 'Hemorrhages: --';
+        evidenceExu.String = 'Exudates: --';
+        evidenceNV.String = 'Neovascularization: --';
+        evidenceSummary.String = 'Overall: --';
+
+        qualityGrade.String = 'Quality: --';
+        qualityDetails.String = 'Brightness: -- | Contrast: -- | Sharpness: --';
+        qualityGuidance.String = '';
+        qualityBar.String = '';
+
+        cla(probAxes);
+
+        statusIndicator.String = 'System: Ready';
+        statusIndicator.ForegroundColor = [0.8 0.9 0.8];
+    end
+end
