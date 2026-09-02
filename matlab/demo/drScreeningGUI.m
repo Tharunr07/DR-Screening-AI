@@ -312,30 +312,20 @@ function drScreeningGUI()
         end
 
         try
-            % Simple gradient-based attention
-            imgResized = imresize(state.currentImage, state.cfgTL.image.size, 'bicubic');
-            meanRGB = [0.485 0.456 0.406];
-            stdRGB = [0.229 0.224 0.225];
-            imgNorm = double(imgResized) / 255;
-            for c = 1:3
-                imgNorm(:,:,c) = (imgNorm(:,:,c) - meanRGB(c)) / stdRGB(c);
-            end
-
-            % Compute gradient w.r.t. top class
-            scores = predict(state.trainedNet, imgNorm);
-            [~, topClass] = max(scores);
-
-            % Create synthetic heatmap (gradient magnitude)
+            % Gradient magnitude as attention heatmap
             grayImg = rgb2gray(state.currentImage);
             [gx, gy] = gradient(double(grayImg));
             heatmap = sqrt(gx.^2 + gy.^2);
             heatmap = mat2gray(heatmap);
 
+            % Get top class from stored results
+            topClass = state.currentResult.prediction.grade + 1;
+
             % Overlay
             figure('Name', 'Explainability Heatmap', 'NumberTitle', 'off');
             imshow(state.currentImage);
             hold on;
-            h = imagesc(heatmap, [0, 1], 'AlphaData', 0.4);
+            imagesc(heatmap, [0, 1], 'AlphaData', 0.4);
             colormap jet;
             colorbar;
             title(sprintf('Attention Heatmap (Top class: G%d)', topClass-1));
