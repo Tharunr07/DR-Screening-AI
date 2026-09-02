@@ -356,9 +356,13 @@ function disclaimer = generateDisclaimer()
         'Final clinical decisions must be made by a'
         'qualified healthcare professional.'
         ''
-        'Model: Transfer Learning ResNet-18'
-        'Performance: Sensitivity 97.7%, Specificity 85.4%'
+        'Model: Transfer Learning ResNet-18 (Phase 17 validated)'
+        'Performance: Sensitivity 87.2%, Specificity 92.7%'
         'Note: External clinical validation not performed'
+        ''
+        'Lesion evidence is AI-assisted supporting evidence.'
+        'Final diagnosis and treatment decisions require'
+        'qualified ophthalmologist review.'
     };
 end
 

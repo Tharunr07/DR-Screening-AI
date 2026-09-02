@@ -141,9 +141,9 @@ function drScreeningGUIv2()
         'FontWeight', 'bold', ...
         'HorizontalAlignment', 'center');
 
-    % Evidence panel
+    % Evidence panel (supporting evidence)
     evidencePanel = uipanel(midPanel, 'Position', [0.03, 0.38, 0.94, 0.32], ...
-        'Title', 'Clinical Evidence', ...
+        'Title', 'Lesion Evidence (Supporting)', ...
         'FontSize', 11, ...
         'FontWeight', 'bold');
 
@@ -499,9 +499,9 @@ function drScreeningGUIv2()
                     riskText.ForegroundColor = [0.8 0 0];
                 end
 
-                % Evidence
+                % Evidence (labeled as supporting evidence)
                 if evidence.microaneurysms.count > 0
-                    evidenceMA.String = sprintf('Microaneurysms: %d detected', evidence.microaneurysms.count);
+                    evidenceMA.String = sprintf('Microaneurysms: %d (supporting)', evidence.microaneurysms.count);
                     evidenceMA.ForegroundColor = [0.8 0.4 0];
                 else
                     evidenceMA.String = 'Microaneurysms: None detected';
@@ -509,7 +509,7 @@ function drScreeningGUIv2()
                 end
 
                 if evidence.hemorrhages.count > 0
-                    evidenceHem.String = sprintf('Hemorrhages: %d detected', evidence.hemorrhages.count);
+                    evidenceHem.String = sprintf('Hemorrhages: %d (supporting)', evidence.hemorrhages.count);
                     evidenceHem.ForegroundColor = [0.8 0.4 0];
                 else
                     evidenceHem.String = 'Hemorrhages: None detected';
@@ -517,7 +517,7 @@ function drScreeningGUIv2()
                 end
 
                 if evidence.exudates.count > 0
-                    evidenceExu.String = sprintf('Exudates: %d detected', evidence.exudates.count);
+                    evidenceExu.String = sprintf('Exudates: %d (supporting)', evidence.exudates.count);
                     evidenceExu.ForegroundColor = [0.8 0.4 0];
                 else
                     evidenceExu.String = 'Exudates: None detected';
@@ -525,14 +525,14 @@ function drScreeningGUIv2()
                 end
 
                 if evidence.neovascularization.detected
-                    evidenceNV.String = 'Neovascularization: DETECTED';
+                    evidenceNV.String = 'NV: DETECTED (supporting)';
                     evidenceNV.ForegroundColor = [0.8 0 0];
                 else
-                    evidenceNV.String = 'Neovascularization: None detected';
+                    evidenceNV.String = 'NV: None detected';
                     evidenceNV.ForegroundColor = [0 0.5 0];
                 end
 
-                evidenceSummary.String = sprintf('Severity: %s', evidence.severity);
+                evidenceSummary.String = sprintf('Severity: %s (supporting)', evidence.severity);
 
                 % Show consistency warning if needed
                 if ~isempty(result.consistencyWarning)
@@ -717,7 +717,9 @@ function drScreeningGUIv2()
             fprintf(fid, '----------\n');
             fprintf(fid, 'This is an AI-assisted screening result, not a definitive diagnosis.\n');
             fprintf(fid, 'Clinical correlation and ophthalmologist review are recommended.\n');
-            fprintf(fid, 'Model: Transfer Learning ResNet-18 (Sens: 97.7%%, Spec: 85.4%%)\n');
+            fprintf(fid, 'Model: Transfer Learning ResNet-18 (Phase 17 validated)\n');
+            fprintf(fid, 'Performance: Sensitivity 87.2%%, Specificity 92.7%%\n');
+            fprintf(fid, 'Lesion evidence is AI-assisted supporting evidence.\n');
 
             fclose(fid);
 
@@ -760,4 +762,13 @@ function drScreeningGUIv2()
         statusIndicator.String = 'System: Ready';
         statusIndicator.ForegroundColor = [0.8 0.9 0.8];
     end
+
+    % Add disclaimer at bottom
+    disclaimerText = uicontrol(fig, 'Style', 'text', ...
+        'Position', [50, 5, 1300, 20], ...
+        'String', 'AI-assisted screening. Lesion evidence is supporting evidence. Final diagnosis requires ophthalmologist review.', ...
+        'FontSize', 8, ...
+        'ForegroundColor', [0.5 0.5 0.5], ...
+        'BackgroundColor', [0.95 0.95 0.97], ...
+        'HorizontalAlignment', 'center');
 end
