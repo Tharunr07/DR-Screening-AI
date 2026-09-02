@@ -48,7 +48,7 @@ drScreeningGUI();
 - > "Graceful error handling — invalid inputs are caught and reported."
 
 **[4:30-5:00] Conclusion**
-- > "Complete pipeline: Detect → Analyze → Classify → Explain → Review. All on the frozen model with 97.7% sensitivity and 85.4% specificity."
+- > "Complete pipeline: Detect → Analyze → Classify → Explain → Review. Phase 17 validated: 87.2% sensitivity (CI: 83.1–90.3%) and 92.7% specificity (CI: 89.8–95.1%) on 612 frozen test images."
 
 ---
 
@@ -83,7 +83,7 @@ This is a real limitation. The model was trained primarily on Indian population 
 
 ### Q: Is this clinically validated?
 
-**A:** No. We state clearly: "The transfer-learning model achieved the predefined sensitivity (>90%) and specificity (>85%) targets on the held-out 612-image test set." This is a research prototype. Clinical validation requires prospective studies with diverse patient populations, which is beyond our current scope.
+**A:** No. We state clearly: "Phase 17 validated: 87.2% sensitivity (CI: 83.1–90.3%) and 92.7% specificity (CI: 89.8–95.1%) on the held-out 612-image test set." This is a research prototype. Clinical validation requires prospective studies with diverse patient populations, which is beyond our current scope. Sensitivity is below our 90% target, which we acknowledge as a limitation.
 
 ### Q: How do you handle class imbalance?
 
@@ -110,10 +110,10 @@ Grade 3 (39 images) and Grade 4 (50) are severely underrepresented. Per-grade se
 ### Q: What would you do differently?
 
 **A:**
-1. More diverse training data (multiple populations, cameras)
-2. External validation on held-out datasets
-3. Calibration training (ECE was 3.9%, could be better)
-4. Grade-specific oversampling for rare classes
+1. More diverse training data (multiple populations, cameras) — would address IDRiD domain shift
+2. External validation on held-out datasets from different institutions
+3. Calibration: ECE=0.344, Brier=0.328 — could be improved with temperature scaling
+4. Grade-specific oversampling for rare classes (Grade 3: 17.9%, Grade 4: 38.0% per-grade sensitivity)
 
 ---
 
@@ -151,7 +151,7 @@ Native ResNet started from random weights. With only 2,792 training images, it c
 
 | Metric | APTOS | IDRiD | Gap |
 |--------|-------|-------|-----|
-| Sensitivity | 98.6% | 91.9% | -6.7% |
+| Sensitivity | 88.7% | 76.3% | -12.4% |
 | Specificity | 87.1% | 59.1% | -28.0% |
 
 ### Why
@@ -163,10 +163,11 @@ Native ResNet started from random weights. With only 2,792 training images, it c
 
 ### How We Address It
 
-- Documented honestly in Phase 8 audit
-- Bootstrap CIs reported (specificity lower bound: 81.6%)
+- Documented honestly in Phase 18 benchmark comparison
+- Bootstrap CIs reported (sensitivity lower bound: 83.1%, specificity lower bound: 89.8%)
 - Claim limited to "held-out test set" not "general population"
-- Future work: multi-site training data
+- Phase 19 optimization experiments confirmed no viable improvement without sacrificing specificity
+- Future work: multi-site training data, domain adaptation techniques
 
 ### What We Don't Do
 
@@ -179,9 +180,73 @@ Native ResNet started from random weights. With only 2,792 training images, it c
 ## 5. Key Talking Points
 
 1. **"We started with interpretable features"** — not just "we trained a CNN"
-2. **"The test set was frozen from Phase 1"** — no peeking
+2. **"The test set was frozen from Phase 1"** — no peeking, 612 images untouched
 3. **"Transfer learning solved the small-data problem"** — 4,119:1 ratio
-4. **"We documented domain shift honestly"** — IDRiD results are public
+4. **"We documented domain shift honestly"** — IDRiD specificity 59.1% vs APTOS 87.1%
 5. **"This is a research prototype, not clinical validation"** — honest scoping
-6. **"Explainability is built in"** — not an afterthought
+6. **"Explainability is built in"** — Grad-CAM + lesion evidence (supporting, not diagnostic)
 7. **"The pipeline is complete"** — Detect → Analyze → Classify → Explain → Review
+8. **"Lesion evidence is supporting"** — requires ophthalmologist confirmation
+9. **"87.2% sensitivity, 92.7% specificity"** — Phase 17 validated, CI reported
+
+---
+
+## 6. Honest Limitations (SIH Slide)
+
+### What We Achieved
+- End-to-end DR screening pipeline in MATLAB
+- Transfer-learning ResNet-18 (Phase 8 frozen)
+- Quality gate, clinical consistency, lesion evidence (supporting)
+- 87.2% sensitivity, 92.7% specificity on 612 frozen test images
+
+### What We Didn't Achieve
+- **>90% sensitivity target**: 87.2% (CI: 83.1–90.3%) crosses 90% — below target
+- **Grade 3/4 performance**: 17.9% / 38.0% per-grade sensitivity (class imbalance)
+- **Domain shift**: IDRiD specificity 59.1% vs APTOS 87.1%
+- **Calibration**: ECE=0.344, Brier=0.328 — not well calibrated
+
+### What We Tried (Phase 19)
+- Class-weight adjustment: +3.9% sens, -55.2% spec — not viable
+- Threshold optimization: no viable operating point on ROC
+- Temperature scaling: ECE got worse (0.344 → 0.389)
+- **Conclusion**: Model is definitively frozen, no further optimization possible
+
+### Why This Matters
+- Honest reporting > inflated claims
+- Research prototype ≠ clinical validation
+- Future work: diverse training data, domain adaptation, prospective studies
+
+---
+
+## 7. Architecture Diagram (Text Description)
+
+### Pipeline Flow
+```
+Fundus Image Input
+    ↓
+Quality Assessment (brightness, contrast, sharpness)
+    ↓ [if POOR → RECAPTURE]
+Preprocessing (resize 224×224, normalize)
+    ↓
+Transfer-Learning ResNet-18 (ImageNet → APTOS/IDRiD)
+    ↓
+5-Class Prediction (G0–G4) + Referable Status
+    ↓
+Clinical Consistency Check (grade vs referable)
+    ↓ [if INCONSISTENCY → flag]
+Lesion Evidence Extraction (supporting, not diagnostic)
+    ↓
+Grad-CAM Heatmap (explainability)
+    ↓
+Clinical Report Generation
+    ↓ [disclaimer: research prototype]
+Ophthalmologist Review
+```
+
+### Key Components
+1. **Quality Gate**: Rejects poor images before classification
+2. **TL ResNet-18**: 11.5M parameters, fine-tuned on 2,792 images
+3. **Clinical Logic**: Enforces referable ≥ G2 consistency
+4. **Lesion Evidence**: Microaneurysms, hemorrhages, exudates (supporting)
+5. **Explainability**: Grad-CAM attention maps
+6. **Report**: Structured text with disclaimer
