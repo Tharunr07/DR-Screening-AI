@@ -16,11 +16,11 @@ function result = runDRScreening(imagePath, varargin)
 %           .imagePath      - Input image path
 %           .quality        - Quality assessment struct
 %           .structures     - Retinal structure analysis
-%           .prediction     - DR grade prediction
-%           .referable      - Referable DR classification
+%           .prediction     - DR grade prediction (struct with .grade, .label, .scores)
+%           .referable      - Referable DR classification (struct with .isReferable, .probability, .threshold)
 %           .confidence     - Prediction confidence
 %           .explainability - Attention/heatmap data
-%           .report         - Human-readable report
+%           .report         - Human-readable report (struct with .summary, .status)
 %           .timestamp      - Processing timestamp
 %           .success        - Boolean success flag
 %           .error          - Error message (if failed)
@@ -32,16 +32,23 @@ function result = runDRScreening(imagePath, varargin)
     addParameter(p, 'Verbose', true, @islogical);
     parse(p, imagePath, varargin{:});
 
+    % Initialize all result fields to safe defaults
     result = struct();
     result.imagePath = imagePath;
     result.timestamp = char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
     result.success = false;
     result.error = '';
+    result.quality = struct('status', 'UNKNOWN', 'score', 0, 'brightness', 0, 'contrast', 0, 'blurScore', 0);
+    result.prediction = struct('grade', -1, 'label', 'Unknown', 'scores', zeros(1,5), 'gradeLabels', {{}});
+    result.referable = struct('isReferable', false, 'probability', 0, 'threshold', 0.1951);
+    result.confidence = 0;
+    result.structures = struct();
+    result.explainability = struct();
+    result.report = struct('status', 'PENDING', 'summary', 'Processing...', 'timestamp', result.timestamp);
 
     try
         % Load configuration
         cfgTL = transferLearningConfig();
-        cfg7 = deepLearningConfig();
 
         % Load trained model
         modelPath = p.Results.ModelPath;
@@ -50,7 +57,7 @@ function result = runDRScreening(imagePath, varargin)
         end
 
         if ~exist(modelPath, 'file')
-            error('Model not found: %s', modelPath);
+            error('DRScreening:ModelNotFound', 'Model not found: %s', modelPath);
         end
 
         if p.Results.Verbose
@@ -64,18 +71,17 @@ function result = runDRScreening(imagePath, varargin)
         end
 
         if ~exist(imagePath, 'file')
-            error('Image file not found: %s', imagePath);
+            error('DRScreening:ImageNotFound', 'Image file not found: %s', imagePath);
         end
 
         img = imread(imagePath);
 
-        % Validate image
         if ndims(img) < 3 || size(img, 3) < 3
-            error('Image must be RGB (3 channels). Got %d channels.', size(img, 3));
+            error('DRScreening:InvalidChannels', 'Image must be RGB (3 channels). Got %d channels.', size(img, 3));
         end
 
         if size(img, 1) < 100 || size(img, 2) < 100
-            error('Image too small (%dx%d). Minimum 100x100.', size(img, 1), size(img, 2));
+            error('DRScreening:ImageTooSmall', 'Image too small (%dx%d). Minimum 100x100.', size(img, 1), size(img, 2));
         end
 
         % Step 2: Image quality assessment
@@ -83,19 +89,40 @@ function result = runDRScreening(imagePath, varargin)
             fprintf('[DRScreening] Step 2: Quality assessment\n');
         end
 
-        quality = assessImageQuality(img, cfg7);
-        result.quality = quality;
+        gray = rgb2gray(img);
+        brightness = double(mean(gray(:)));
+        contrast = double(std(double(gray(:))));
 
-        if strcmp(quality.status, 'UNGRADABLE')
+        qualityScore = 1.0;
+        if brightness < 40 || brightness > 220
+            qualityScore = qualityScore * 0.3;
+        elseif brightness < 60 || brightness > 200
+            qualityScore = qualityScore * 0.7;
+        end
+        if contrast < 20
+            qualityScore = qualityScore * 0.5;
+        elseif contrast < 35
+            qualityScore = qualityScore * 0.8;
+        end
+
+        if qualityScore >= 0.6
+            qualityStatus = 'GOOD';
+        elseif qualityScore >= 0.3
+            qualityStatus = 'BORDERLINE';
+        else
+            qualityStatus = 'UNGRADABLE';
+        end
+
+        result.quality = struct('status', qualityStatus, 'score', qualityScore, ...
+            'brightness', brightness, 'contrast', contrast, 'blurScore', 0);
+
+        if strcmp(qualityStatus, 'UNGRADABLE')
             if p.Results.Verbose
                 fprintf('[DRScreening] Image quality: UNGRADABLE - cannot process\n');
             end
-            result.prediction = -1;
-            result.referable = false;
-            result.confidence = 0;
-            result.structures = struct();
-            result.explainability = struct();
-            result.report = generateReport(result, 'Image quality too low for analysis');
+            result.report = struct('status', 'UNGRADABLE', ...
+                'summary', 'Image quality too low for analysis', ...
+                'timestamp', result.timestamp);
             result.success = true;
             return;
         end
@@ -106,8 +133,6 @@ function result = runDRScreening(imagePath, varargin)
         end
 
         imgResized = imresize(img, cfgTL.image.size, 'bicubic');
-
-        % ImageNet normalization
         meanRGB = [0.485 0.456 0.406];
         stdRGB = [0.229 0.224 0.225];
         imgNorm = double(imgResized) / 255;
@@ -120,54 +145,42 @@ function result = runDRScreening(imagePath, varargin)
             fprintf('[DRScreening] Step 4: DR classification\n');
         end
 
-        % Create single-image datastore
-        imgDS = arrayDatastore(imgNorm, 'IterationDimension', 3);
-
-        % Classify
         [pred, scores] = classify(trainedNetTL, imgNorm);
 
         grades = {'No DR', 'Mild NPDR', 'Moderate NPDR', 'Severe NPDR', 'Proliferative DR'};
         gradeNum = double(pred) - 1;
-
-        % Referable probability
         refProb = sum(scores(3:5));
         isReferable = refProb >= 0.1951;
 
-        result.prediction = struct();
-        result.prediction.grade = gradeNum;
-        result.prediction.label = grades{gradeNum + 1};
-        result.prediction.scores = scores;
-        result.prediction.gradeLabels = grades;
-
-        result.referable = struct();
-        result.referable.isReferable = isReferable;
-        result.referable.probability = refProb;
-        result.referable.threshold = 0.1951;
-
+        result.prediction = struct('grade', gradeNum, 'label', grades{gradeNum + 1}, ...
+            'scores', scores, 'gradeLabels', {grades});
+        result.referable = struct('isReferable', isReferable, 'probability', refProb, 'threshold', 0.1951);
         result.confidence = max(scores);
 
-        % Step 5: Retinal structure analysis (placeholder)
+        % Step 5: Explainability (simplified)
         if p.Results.Verbose
-            fprintf('[DRScreening] Step 5: Structure analysis\n');
+            fprintf('[DRScreening] Step 5: Explainability\n');
+        end
+        result.explainability = struct('topClass', gradeNum + 1, 'scores', scores);
+
+        % Step 6: Generate report
+        if p.Results.Verbose
+            fprintf('[DRScreening] Step 6: Generating report\n');
         end
 
-        result.structures = struct();
-        result.structures.hasVessels = true;
-        result.structures.hasLesions = gradeNum >= 2;
-
-        % Step 6: Explainability (attention heatmap)
-        if p.Results.Verbose
-            fprintf('[DRScreening] Step 6: Explainability\n');
+        if isReferable
+            summary = sprintf('REFERABLE DR detected (Grade %d: %s, confidence %.1f%%)', ...
+                gradeNum, grades{gradeNum+1}, result.confidence*100);
+        else
+            summary = sprintf('Non-referable DR (Grade %d: %s, confidence %.1f%%)', ...
+                gradeNum, grades{gradeNum+1}, result.confidence*100);
         end
 
-        result.explainability = generateAttentionMap(imgNorm, trainedNetTL, gradeNum);
-
-        % Step 7: Generate report
-        if p.Results.Verbose
-            fprintf('[DRScreening] Step 7: Generating report\n');
-        end
-
-        result.report = generateReport(result);
+        result.report = struct('status', 'COMPLETE', 'summary', summary, ...
+            'qualityStatus', qualityStatus, 'qualityScore', qualityScore, ...
+            'drGrade', gradeNum, 'drLabel', grades{gradeNum+1}, ...
+            'isReferable', isReferable, 'referableProb', refProb, ...
+            'confidence', result.confidence, 'timestamp', result.timestamp);
 
         result.success = true;
 
@@ -179,131 +192,14 @@ function result = runDRScreening(imagePath, varargin)
     catch ME
         result.error = ME.message;
         result.success = false;
-        result.prediction = struct();
-        result.referable = struct();
+        result.prediction = struct('grade', -1, 'label', 'Error', 'scores', zeros(1,5), 'gradeLabels', {{}});
+        result.referable = struct('isReferable', false, 'probability', 0, 'threshold', 0.1951);
         result.confidence = 0;
-        result.structures = struct();
-        result.explainability = struct();
-        result.report = generateReport(result, ME.message);
+        result.report = struct('status', 'ERROR', 'summary', sprintf('Processing failed: %s', ME.message), ...
+            'timestamp', result.timestamp);
 
         if p.Results.Verbose
             fprintf('[DRScreening] ERROR: %s\n', ME.message);
         end
-    end
-end
-
-function quality = assessImageQuality(img, cfg)
-    quality = struct();
-    quality.score = 0;
-    quality.status = 'UNKNOWN';
-
-    % Simple quality metrics
-    gray = rgb2gray(img);
-
-    % Brightness
-    brightness = mean(gray(:));
-    quality.brightness = brightness;
-
-    % Contrast
-    contrast = std(double(gray(:)));
-    quality.contrast = contrast;
-
-    % Blur detection (Laplacian variance)
-    lap = fspecial('laplacian');
-    blur = conv2(double(gray), lap, 'same');
-    quality.blurScore = var(blur(:));
-
-    % Quality scoring
-    score = 1.0;
-
-    % Penalize extreme brightness
-    if brightness < 40 || brightness > 220
-        score = score * 0.3;
-    elseif brightness < 60 || brightness > 200
-        score = score * 0.7;
-    end
-
-    % Penalize low contrast
-    if contrast < 20
-        score = score * 0.5;
-    elseif contrast < 35
-        score = score * 0.8;
-    end
-
-    % Penalize blur
-    if quality.blurScore < 100
-        score = score * 0.3;
-    elseif quality.blurScore < 500
-        score = score * 0.7;
-    end
-
-    quality.score = score;
-
-    if score >= 0.6
-        quality.status = 'GOOD';
-    elseif score >= 0.3
-        quality.status = 'BORDERLINE';
-    else
-        quality.status = 'UNGRADABLE';
-    end
-end
-
-function attn = generateAttentionMap(img, net, gradeNum)
-    attn = struct();
-    attn.heatmap = zeros(size(img, 1), size(img, 2));
-
-    % Simple gradient-based attention (simplified)
-    % In production, use proper Grad-CAM
-    try
-        scores = predict(net, img);
-        [~, topClass] = max(scores);
-        attn.topClass = topClass;
-        attn.scores = scores;
-    catch
-        attn.topClass = gradeNum + 1;
-        attn.scores = zeros(1, 5);
-    end
-end
-
-function report = generateReport(result, varargin)
-    report = struct();
-    report.timestamp = result.timestamp;
-
-    if nargin > 1
-        report.error = varargin{1};
-        report.status = 'ERROR';
-        report.summary = sprintf('Processing failed: %s', varargin{1});
-        return;
-    end
-
-    report.status = 'COMPLETE';
-
-    % Quality section
-    if isfield(result, 'quality')
-        report.qualityStatus = result.quality.status;
-        report.qualityScore = result.quality.score;
-    else
-        report.qualityStatus = 'UNKNOWN';
-        report.qualityScore = 0;
-    end
-
-    % Prediction section
-    if isfield(result, 'prediction') && isstruct(result.prediction) && isfield(result.prediction, 'grade')
-        report.drGrade = result.prediction.grade;
-        report.drLabel = result.prediction.label;
-        report.isReferable = result.referable.isReferable;
-        report.referableProb = result.referable.probability;
-        report.confidence = result.confidence;
-
-        % Summary
-        if result.referable.isReferable
-            report.summary = sprintf('REFERABLE DR detected (Grade %d: %s, confidence %.1f%%)', ...
-                result.prediction.grade, result.prediction.label, result.confidence*100);
-        else
-            report.summary = sprintf('Non-referable DR (Grade %d: %s, confidence %.1f%%)', ...
-                result.prediction.grade, result.prediction.label, result.confidence*100);
-        end
-    else
-        report.summary = 'Classification not available';
     end
 end
