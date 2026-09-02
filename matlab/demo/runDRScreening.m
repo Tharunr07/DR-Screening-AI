@@ -163,30 +163,68 @@ function result = runDRScreening(imagePath, varargin)
         end
         result.explainability = struct('topClass', gradeNum + 1, 'scores', scores);
 
-        % Step 6: Generate report
+        % Step 6: Extract lesion evidence
         if p.Results.Verbose
-            fprintf('[DRScreening] Step 6: Generating report\n');
+            fprintf('[DRScreening] Step 6: Lesion evidence\n');
+        end
+        evidence = extractLesionEvidence(img);
+
+        % Step 7: Apply clinical logic
+        if p.Results.Verbose
+            fprintf('[DRScreening] Step 7: Clinical logic\n');
+        end
+        quality = struct('status', qualityStatus, 'brightness', brightness, ...
+            'contrast', contrast, 'sharpness', 0);
+        clinical = applyClinicalLogic(gradeNum, scores, evidence, quality);
+
+        % Step 8: Generate report
+        if p.Results.Verbose
+            fprintf('[DRScreening] Step 8: Generating report\n');
         end
 
-        if isReferable
-            summary = sprintf('REFERABLE DR detected (Grade %d: %s, confidence %.1f%%)', ...
-                gradeNum, grades{gradeNum+1}, result.confidence*100);
+        if strcmp(clinical.status, 'UNGRADABLE')
+            summary = 'Image ungradeable. Please recapture with improved quality.';
         else
-            summary = sprintf('Non-referable DR (Grade %d: %s, confidence %.1f%%)', ...
-                gradeNum, grades{gradeNum+1}, result.confidence*100);
+            if clinical.referable
+                summary = sprintf('REFERABLE DR detected (Grade %d: %s, probability %.1f%%, confidence: %s)', ...
+                    clinical.gradeNum, clinical.gradeName, clinical.probability*100, clinical.confidenceLevel);
+            else
+                summary = sprintf('Non-referable DR (Grade %d: %s, probability %.1f%%, confidence: %s)', ...
+                    clinical.gradeNum, clinical.gradeName, clinical.probability*100, clinical.confidenceLevel);
+            end
+
+            if ~isempty(clinical.consistencyWarning)
+                summary = sprintf('%s\n%s', summary, clinical.consistencyWarning);
+            end
         end
 
-        result.report = struct('status', 'COMPLETE', 'summary', summary, ...
+        result.prediction = struct('grade', clinical.gradeNum, 'label', clinical.gradeName, ...
+            'scores', scores, 'gradeLabels', {grades});
+        result.referable = struct('isReferable', clinical.referable, ...
+            'decision', clinical.referableDecision, ...
+            'probability', clinical.probability, 'threshold', 0.1951);
+        result.confidence = clinical.probability;
+        result.confidenceLevel = clinical.confidenceLevel;
+        result.evidence = evidence;
+        result.consistency = clinical.consistency;
+        result.consistencyWarning = clinical.consistencyWarning;
+        result.recommendation = clinical.recommendation;
+
+        result.report = struct('status', clinical.status, 'summary', summary, ...
             'qualityStatus', qualityStatus, 'qualityScore', qualityScore, ...
-            'drGrade', gradeNum, 'drLabel', grades{gradeNum+1}, ...
-            'isReferable', isReferable, 'referableProb', refProb, ...
-            'confidence', result.confidence, 'timestamp', result.timestamp);
+            'drGrade', clinical.gradeNum, 'drLabel', clinical.gradeName, ...
+            'isReferable', clinical.referable, 'referableDecision', clinical.referableDecision, ...
+            'probability', clinical.probability, 'confidenceLevel', clinical.confidenceLevel, ...
+            'consistency', clinical.consistency, ...
+            'recommendation', clinical.recommendation, ...
+            'timestamp', result.timestamp);
 
         result.success = true;
 
         if p.Results.Verbose
-            fprintf('[DRScreening] Complete: Grade %d (%s), Referable=%d, Confidence=%.1f%%\n', ...
-                gradeNum, grades{gradeNum+1}, isReferable, result.confidence*100);
+            fprintf('[DRScreening] Complete: Status=%s, Grade=%d (%s), Referable=%s, Prob=%.1f%%, Conf=%s\n', ...
+                clinical.status, clinical.gradeNum, clinical.gradeName, ...
+                clinical.referableDecision, clinical.probability*100, clinical.confidenceLevel);
         end
 
     catch ME

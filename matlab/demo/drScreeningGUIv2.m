@@ -178,6 +178,21 @@ function drScreeningGUIv2()
         'FontWeight', 'bold', ...
         'HorizontalAlignment', 'left');
 
+    % Consistency warning
+    warningPanel = uipanel(midPanel, 'Position', [0.03, 0.38, 0.94, 0.32], ...
+        'Title', 'Clinical Consistency', ...
+        'FontSize', 10, ...
+        'FontWeight', 'bold', ...
+        'Visible', 'off');
+
+    warningText = uicontrol(warningPanel, 'Style', 'text', ...
+        'Position', [5, 5, 270, 100], ...
+        'String', '', ...
+        'FontSize', 9, ...
+        'ForegroundColor', [0.8 0.4 0], ...
+        'HorizontalAlignment', 'left', ...
+        'Visible', 'off');
+
     % Class probabilities
     probPanel = uipanel(midPanel, 'Position', [0.03, 0.02, 0.94, 0.34], ...
         'Title', 'DR Grade Probabilities', ...
@@ -367,6 +382,39 @@ function drScreeningGUIv2()
             statusIndicator.ForegroundColor = [1 0.8 0];
             drawnow;
 
+            % Quality assessment
+            gray = rgb2gray(state.currentImage);
+            brightness = mean(gray(:));
+            contrast = std(double(gray(:)));
+            lap = fspecial('laplacian');
+            lapResult = conv2(double(gray), lap, 'same');
+            blurVar = var(lapResult(:));
+
+            quality = struct();
+            quality.brightness = brightness;
+            quality.contrast = contrast;
+            quality.sharpness = blurVar;
+
+            % Quality scoring
+            score = 0;
+            if brightness >= 40 && brightness <= 220
+                score = score + 1;
+            end
+            if contrast >= 20
+                score = score + 1;
+            end
+            if blurVar >= 100
+                score = score + 1;
+            end
+
+            if score == 3
+                quality.status = 'GOOD';
+            elseif score == 2
+                quality.status = 'BORDERLINE';
+            else
+                quality.status = 'POOR';
+            end
+
             % Preprocess
             cfgTL = transferLearningConfig();
             imgR = imresize(state.currentImage, cfgTL.image.size, 'bicubic');
@@ -378,75 +426,127 @@ function drScreeningGUIv2()
 
             % Classify
             [pred, scores] = classify(state.trainedNet, n);
-
             gradeNum = double(pred) - 1;
-            grades = {'No DR', 'Mild NPDR', 'Moderate NPDR', 'Severe NPDR', 'Proliferative DR'};
-            refProb = sum(scores(3:5));
-            isReferable = refProb >= 0.1951;
-            confidence = max(scores);
 
             % Lesion evidence
             evidence = extractLesionEvidence(state.currentImage);
 
-            % Update UI
-            gradeText.String = sprintf('Grade %d: %s', gradeNum, grades{gradeNum+1});
+            % Apply clinical logic (quality gating, referable consistency, etc.)
+            result = applyClinicalLogic(gradeNum, scores, evidence, quality);
 
-            if isReferable
-                refText.String = 'Referable: YES';
+            % Update UI based on clinical result
+            if strcmp(result.status, 'UNGRADABLE')
+                % Image is ungradeable - show rejection
+                gradeText.String = 'UNGRADABLE';
+                gradeText.ForegroundColor = [0.8 0 0];
+                refText.String = 'RECAPTURE';
                 refText.ForegroundColor = [0.8 0 0];
-            else
-                refText.String = 'Referable: NO';
-                refText.ForegroundColor = [0 0.5 0];
-            end
-
-            confText.String = sprintf('Confidence: %.1f%%', confidence*100);
-
-            % Risk assessment
-            if gradeNum == 0
-                riskText.String = 'Risk: NONE';
-                riskText.ForegroundColor = [0 0.5 0];
-            elseif gradeNum <= 2
-                riskText.String = 'Risk: MODERATE';
-                riskText.ForegroundColor = [0.8 0.5 0];
-            else
-                riskText.String = 'Risk: HIGH';
+                confText.String = 'N/A';
+                riskText.String = 'N/A';
                 riskText.ForegroundColor = [0.8 0 0];
-            end
 
-            % Evidence
-            if evidence.microaneurysms.count > 0
-                evidenceMA.String = sprintf('Microaneurysms: %d detected', evidence.microaneurysms.count);
-                evidenceMA.ForegroundColor = [0.8 0.4 0];
+                % Hide evidence panels
+                evidenceMA.String = 'Microaneurysms: N/A (image ungradeable)';
+                evidenceMA.ForegroundColor = [0.5 0.5 0.5];
+                evidenceHem.String = 'Hemorrhages: N/A (image ungradeable)';
+                evidenceHem.ForegroundColor = [0.5 0.5 0.5];
+                evidenceExu.String = 'Exudates: N/A (image ungradeable)';
+                evidenceExu.ForegroundColor = [0.5 0.5 0.5];
+                evidenceNV.String = 'Neovascularization: N/A (image ungradeable)';
+                evidenceNV.ForegroundColor = [0.5 0.5 0.5];
+                evidenceSummary.String = 'N/A';
+                evidenceSummary.ForegroundColor = [0.5 0.5 0.5];
+
+                % Show warning
+                warningPanel.Visible = 'on';
+                warningText.Visible = 'on';
+                warningText.String = result.recommendation;
+                warningText.ForegroundColor = [0.8 0 0];
+
+                statusIndicator.String = 'Image ungradeable - recapture required';
+                statusIndicator.ForegroundColor = [1 0.2 0.2];
             else
-                evidenceMA.String = 'Microaneurysms: None detected';
-                evidenceMA.ForegroundColor = [0 0.5 0];
-            end
+                % Image is gradeable - show classification
+                gradeText.String = sprintf('Grade %d: %s', result.gradeNum, result.gradeName);
 
-            if evidence.hemorrhages.count > 0
-                evidenceHem.String = sprintf('Hemorrhages: %d detected', evidence.hemorrhages.count);
-                evidenceHem.ForegroundColor = [0.8 0.4 0];
-            else
-                evidenceHem.String = 'Hemorrhages: None detected';
-                evidenceHem.ForegroundColor = [0 0.5 0];
-            end
+                if result.referable
+                    refText.String = 'Referable: YES';
+                    refText.ForegroundColor = [0.8 0 0];
+                else
+                    refText.String = 'Referable: NO';
+                    refText.ForegroundColor = [0 0.5 0];
+                end
 
-            if evidence.exudates.count > 0
-                evidenceExu.String = sprintf('Exudates: %d detected', evidence.exudates.count);
-                evidenceExu.ForegroundColor = [0.8 0.4 0];
-            else
-                evidenceExu.String = 'Exudates: None detected';
-                evidenceExu.ForegroundColor = [0 0.5 0];
-            end
+                % Show probability and confidence level
+                confText.String = sprintf('Prob: %.1f%% | Conf: %s', ...
+                    result.probability*100, result.confidenceLevel);
 
-            if evidence.neovascularization.detected
-                evidenceNV.String = 'Neovascularization: DETECTED';
-                evidenceNV.ForegroundColor = [0.8 0 0];
-            else
-                evidenceNV.String = 'Neovascularization: None detected';
-                evidenceNV.ForegroundColor = [0 0.5 0];
-            end
+                % Risk assessment
+                if result.gradeNum == 0
+                    riskText.String = 'Risk: NONE';
+                    riskText.ForegroundColor = [0 0.5 0];
+                elseif result.gradeNum <= 2
+                    riskText.String = 'Risk: MODERATE';
+                    riskText.ForegroundColor = [0.8 0.5 0];
+                else
+                    riskText.String = 'Risk: HIGH';
+                    riskText.ForegroundColor = [0.8 0 0];
+                end
 
-            evidenceSummary.String = sprintf('Severity: %s', evidence.severity);
+                % Evidence
+                if evidence.microaneurysms.count > 0
+                    evidenceMA.String = sprintf('Microaneurysms: %d detected', evidence.microaneurysms.count);
+                    evidenceMA.ForegroundColor = [0.8 0.4 0];
+                else
+                    evidenceMA.String = 'Microaneurysms: None detected';
+                    evidenceMA.ForegroundColor = [0 0.5 0];
+                end
+
+                if evidence.hemorrhages.count > 0
+                    evidenceHem.String = sprintf('Hemorrhages: %d detected', evidence.hemorrhages.count);
+                    evidenceHem.ForegroundColor = [0.8 0.4 0];
+                else
+                    evidenceHem.String = 'Hemorrhages: None detected';
+                    evidenceHem.ForegroundColor = [0 0.5 0];
+                end
+
+                if evidence.exudates.count > 0
+                    evidenceExu.String = sprintf('Exudates: %d detected', evidence.exudates.count);
+                    evidenceExu.ForegroundColor = [0.8 0.4 0];
+                else
+                    evidenceExu.String = 'Exudates: None detected';
+                    evidenceExu.ForegroundColor = [0 0.5 0];
+                end
+
+                if evidence.neovascularization.detected
+                    evidenceNV.String = 'Neovascularization: DETECTED';
+                    evidenceNV.ForegroundColor = [0.8 0 0];
+                else
+                    evidenceNV.String = 'Neovascularization: None detected';
+                    evidenceNV.ForegroundColor = [0 0.5 0];
+                end
+
+                evidenceSummary.String = sprintf('Severity: %s', evidence.severity);
+
+                % Show consistency warning if needed
+                if ~isempty(result.consistencyWarning)
+                    warningPanel.Visible = 'on';
+                    warningText.Visible = 'on';
+                    warningText.String = result.consistencyWarning;
+                    if strcmp(result.consistency, 'MAJOR_INCONSISTENCY')
+                        warningText.ForegroundColor = [0.8 0 0];
+                    else
+                        warningText.ForegroundColor = [0.8 0.4 0];
+                    end
+                else
+                    warningPanel.Visible = 'off';
+                    warningText.Visible = 'off';
+                end
+
+                statusIndicator.String = sprintf('Screening complete: Grade %d (%s)', ...
+                    result.gradeNum, result.gradeName);
+                statusIndicator.ForegroundColor = [0.2 0.8 0.2];
+            end
 
             % Class probabilities bar chart
             axes(probAxes);
@@ -457,21 +557,13 @@ function drScreeningGUIv2()
             ylim([0, 1]);
 
             % Store result
-            state.currentResult = struct();
-            state.currentResult.grade = gradeNum;
-            state.currentResult.gradeName = grades{gradeNum+1};
-            state.currentResult.referable = isReferable;
-            state.currentResult.referableProb = refProb;
-            state.currentResult.confidence = confidence;
+            state.currentResult = result;
             state.currentResult.scores = scores;
             state.currentResult.evidence = evidence;
             state.currentResult.timestamp = datestr(now, 'yyyy-mm-dd HH:MM:SS');
 
             % Add to history
-            addToHistory(gradeNum, grades{gradeNum+1}, isReferable, confidence, evidence);
-
-            statusIndicator.String = sprintf('Screening complete: Grade %d (%s)', gradeNum, grades{gradeNum+1});
-            statusIndicator.ForegroundColor = [0.2 0.8 0.2];
+            addToHistory(result);
 
         catch ME
             statusIndicator.String = 'Screening FAILED';
@@ -480,15 +572,27 @@ function drScreeningGUIv2()
         end
     end
 
-    function addToHistory(gradeNum, gradeName, isReferable, confidence, evidence)
+        catch ME
+            statusIndicator.String = 'Screening FAILED';
+            statusIndicator.ForegroundColor = [1 0.2 0.2];
+            errordlg(sprintf('Screening failed: %s', ME.message), 'Error');
+        end
+    end
+
+    function addToHistory(result)
         state.screeningCount = state.screeningCount + 1;
         screenID = sprintf('DR%03d', state.screeningCount);
         timestamp = datestr(now, 'HH:MM:SS');
-        refStr = 'No';
-        if isReferable; refStr = 'Yes'; end
 
-        entry = sprintf('%s | %s | G%d %s | Ref:%s | %.0f%% | %s', ...
-            screenID, timestamp, gradeNum, gradeName, refStr, confidence*100, evidence.severity);
+        if strcmp(result.status, 'UNGRADABLE')
+            entry = sprintf('%s | %s | UNGRADABLE | RECAPTURE', screenID, timestamp);
+        else
+            refStr = 'No';
+            if result.referable; refStr = 'Yes'; end
+            entry = sprintf('%s | %s | G%d %s | Ref:%s | %.0f%% | %s', ...
+                screenID, timestamp, result.gradeNum, result.gradeName, ...
+                refStr, result.probability*100, result.consistency);
+        end
 
         state.screeningHistory{end+1} = entry;
         set(historyList, 'String', state.screeningHistory);
