@@ -60,7 +60,6 @@ function generatePresentationFigures()
 
     sgtitle('Model Performance Progression', 'FontSize', 14, 'FontWeight', 'bold');
     saveas(fig1, fullfile(figDir, 'fig1_model_progression.png'));
-    close(fig1);
 
     % --- Figure 2: ROC Curve ---
     fprintf('Figure 2: ROC Curve\n');
@@ -91,7 +90,6 @@ function generatePresentationFigures()
     xlim([0, 1]);
     ylim([0, 1]);
     saveas(fig2, fullfile(figDir, 'fig2_roc_curve.png'));
-    close(fig2);
 
     % --- Figure 3: Per-Dataset Performance ---
     fprintf('Figure 3: Per-Dataset Performance\n');
@@ -115,7 +113,6 @@ function generatePresentationFigures()
     yline(85, '--b', 'Spec Target', 'LineWidth', 1);
     grid on;
     saveas(fig3, fullfile(figDir, 'fig3_per_dataset.png'));
-    close(fig3);
 
     % --- Figure 4: Class-wise Performance ---
     fprintf('Figure 4: Class-wise Performance\n');
@@ -135,7 +132,6 @@ function generatePresentationFigures()
     legend('Sensitivity', 'Specificity', 'Location', 'southwest');
     grid on;
     saveas(fig4, fullfile(figDir, 'fig4_per_grade.png'));
-    close(fig4);
 
     % --- Figure 5: Confusion Matrix ---
     fprintf('Figure 5: Confusion Matrix\n');
@@ -171,7 +167,6 @@ function generatePresentationFigures()
     end
 
     saveas(fig5, fullfile(figDir, 'fig5_confusion_matrix.png'));
-    close(fig5);
 
     fprintf('\nAll figures saved to: %s\n', figDir);
     fprintf('=== DONE ===\n');

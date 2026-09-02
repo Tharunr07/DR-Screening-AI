@@ -246,7 +246,6 @@ function generateSimulationFigures(cfg, results, bandwidthResults)
 
     sgtitle('Telemedicine Simulation: Scenario Comparison', 'FontSize', 13, 'FontWeight', 'bold');
     saveas(fig1, fullfile(figDir, 'fig6_scenario_comparison.png'));
-    close(fig1);
 
     % Figure 2: Bandwidth impact
     fig2 = figure('Name', 'Bandwidth Impact', 'NumberTitle', 'off', ...
@@ -266,7 +265,6 @@ function generateSimulationFigures(cfg, results, bandwidthResults)
     grid on;
 
     saveas(fig2, fullfile(figDir, 'fig7_bandwidth_impact.png'));
-    close(fig2);
 
     fprintf('Figures saved to: %s\n', figDir);
 end
