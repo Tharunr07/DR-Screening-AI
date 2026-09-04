@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phase 24 — DR Annotation Tool</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>DR Grading Annotation Tool</h1>
+        <p class="subtitle">Phase 24 — Clinical Ground-Truth Annotation</p>
+
+        <div class="card">
+            <h2>Select Reader</h2>
+            <p>Choose your reader ID to begin annotation. Each reader works independently and cannot see other readers' annotations.</p>
+
+            <div class="reader-grid">
+                {% for reader_id in readers %}
+                <a href="/reader/{{ reader_id }}" class="reader-card">
+                    <div class="reader-icon">R{{ loop.index }}</div>
+                    <div class="reader-label">{{ reader_id }}</div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>DR Grade Reference</h2>
+            <table class="grade-table">
+                <tr><th>Grade</th><th>Description</th><th>Referable?</th></tr>
+                {% for grade, desc in dr_grades.items() %}
+                <tr>
+                    <td><span class="grade-badge grade-{{ grade }}">G{{ grade }}</span></td>
+                    <td>{{ desc }}</td>
+                    <td>{{ "Yes" if grade >= 2 else "No" }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>Admin</h2>
+            <a href="/admin" class="btn btn-secondary">View Admin Dashboard</a>
+        </div>
+    </div>
+</body>
+</html>

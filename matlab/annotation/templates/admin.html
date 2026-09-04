@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Admin Dashboard</h1>
+            <div>
+                <a href="/admin/agreement" class="btn btn-primary">View Agreement Report</a>
+                <a href="/" class="btn btn-secondary">Home</a>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            {% for reader_id, p in progress.items() %}
+            <div class="stat-card">
+                <div class="stat-value">{{ p.completed }}/{{ p.total }}</div>
+                <div class="stat-label">{{ reader_id }}</div>
+                <div class="progress-bar" style="margin-top: 10px">
+                    <div class="progress-fill" style="width: {{ (p.completed / p.total * 100) if p.total > 0 else 0 }}%"></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="card">
+            <h2>Quick Links</h2>
+            <div class="action-buttons">
+                {% for reader_id in readers %}
+                <a href="/reader/{{ reader_id }}" class="btn btn-secondary">{{ reader_id }} Dashboard</a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

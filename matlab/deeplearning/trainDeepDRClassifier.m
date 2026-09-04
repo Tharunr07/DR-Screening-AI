@@ -1,0 +1,69 @@
+function [trainedNet, trainInfo] = trainDeepDRClassifier(imdsTrain, imdsVal, classWeights, cfg)
+% trainDeepDRClassifier  Train deep learning DR classifier
+%
+%   [trainedNet, trainInfo] = trainDeepDRClassifier(imdsTrain, imdsVal, classWeights, cfg)
+
+    if nargin < 4, cfg = deepLearningConfig(); end
+    rng(cfg.seed);
+
+    fprintf('[trainDL] Training deep learning DR classifier\n');
+    fprintf('[trainDL] Max epochs: %d, Batch size: %d, LR: %.2e\n', ...
+        cfg.training.maxEpochs, cfg.training.miniBatchSize, cfg.training.initialLearnRate);
+
+    % Create network
+    lgraph = createDRNetwork(cfg);
+
+    % Augmentation
+    if cfg.augmentation.enable
+        augmenter = imageDataAugmenter( ...
+            'RandXReflection', cfg.augmentation.flipHorizontal, ...
+            'RandRotation', cfg.augmentation.rotationRange, ...
+            'RandXTranslation', cfg.augmentation.translationRange, ...
+            'RandYTranslation', cfg.augmentation.translationRange, ...
+            'RandScale', cfg.augmentation.scaleRange);
+        auIMDS = augmentedImageDatastore(cfg.image.size, imdsTrain, ...
+            'DataAugmentation', augmenter);
+    else
+        auIMDS = augmentedImageDatastore(cfg.image.size, imdsTrain);
+    end
+
+    valImds = augmentedImageDatastore(cfg.image.size, imdsVal);
+
+    % Class weights for loss
+    % Create custom class weights
+    classes = 0:4;
+    classNames = categorical(classes);
+    weightVector = classWeights;
+
+    % Training options
+    options = trainingOptions('adam', ...
+        'MaxEpochs', cfg.training.maxEpochs, ...
+        'MiniBatchSize', cfg.training.miniBatchSize, ...
+        'InitialLearnRate', cfg.training.initialLearnRate, ...
+        'LearnRateSchedule', cfg.training.learnRateSchedule, ...
+        'LearnRateDropPeriod', cfg.training.learnRateDropPeriod, ...
+        'LearnRateDropFactor', cfg.training.learnRateDropFactor, ...
+        'L2Regularization', cfg.training.l2Regularization, ...
+        'ValidationData', valImds, ...
+        'ValidationFrequency', cfg.training.validationFrequency, ...
+        'ValidationPatience', 10, ...
+        'Shuffle', 'every-epoch', ...
+        'Verbose', cfg.training.verbose, ...
+        'Plots', cfg.training.plots, ...
+        'ExecutionEnvironment', 'auto');
+
+    % Train network
+    tic;
+    [trainedNet, trainInfo] = trainNetwork(auIMDS, lgraph, options);
+    trainTime = toc;
+
+    fprintf('[trainDL] Training completed in %.1f seconds\n', trainTime);
+    fprintf('[trainDL] Final validation accuracy: %.4f\n', trainInfo.ValidationAccuracy(end));
+
+    % Save training info
+    trainInfo.trainTime = trainTime;
+    trainInfo.finalTrainLoss = trainInfo.TrainingLoss(end);
+    trainInfo.finalValLoss = trainInfo.ValidationLoss(end);
+    trainInfo.finalTrainAcc = trainInfo.TrainingAccuracy(end);
+    trainInfo.finalValAcc = trainInfo.ValidationAccuracy(end);
+end

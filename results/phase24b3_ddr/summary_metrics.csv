@@ -1,0 +1,4 @@
+lesion_type,n_images,n_has_lesion,n_detected,image_detection_rate,mean_dice,mean_iou,mean_precision,mean_recall,mean_specificity,mean_dice_ci_low,mean_dice_ci_high,mean_recall_ci_low,mean_recall_ci_high
+MA,60,50,0,0,NaN,0,0,0,1,NaN,NaN,0,0
+HE,60,30,15,0.5,NaN,0.0190533118237016,0.0307576352876184,0.0286131256117854,0.999739647317877,NaN,NaN,0,0.0668688675418445
+EX,60,2,0,0,NaN,0,0,0,0.999918733288316,NaN,NaN,0,0

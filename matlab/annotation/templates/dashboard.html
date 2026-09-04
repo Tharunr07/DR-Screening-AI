@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reader {{ reader_id }} — Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Reader {{ reader_id }} Dashboard</h1>
+            <a href="/" class="btn btn-secondary">Switch Reader</a>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">{{ completed }}</div>
+                <div class="stat-label">Completed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ remaining }}</div>
+                <div class="stat-label">Remaining</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ total }}</div>
+                <div class="stat-label">Total</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ "%.0f"|format(completed / total * 100 if total > 0 else 0) }}%</div>
+                <div class="stat-label">Progress</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Progress Bar</h2>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: {{ (completed / total * 100) if total > 0 else 0 }}%"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Actions</h2>
+            <div class="action-buttons">
+                <a href="/annotate/{{ reader_id }}" class="btn btn-primary">Continue Annotation</a>
+                <a href="/api/annotations/{{ reader_id }}" class="btn btn-secondary" target="_blank">View My Annotations (JSON)</a>
+                <a href="/api/progress/{{ reader_id }}" class="btn btn-secondary" target="_blank">View Progress (JSON)</a>
+            </div>
+        </div>
+
+        {% if images %}
+        <div class="card">
+            <h2>Next Images</h2>
+            <div class="image-list">
+                {% for img in images %}
+                <a href="/annotate/{{ reader_id }}/{{ img.image_id }}" class="image-item">
+                    <span class="image-id">{{ img.image_id }}</span>
+                    <span class="image-dataset">{{ img.dataset }}</span>
+                    <span class="image-grade">G{{ img.dr_grade }}</span>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
