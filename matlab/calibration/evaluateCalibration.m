@@ -43,14 +43,9 @@ function cal = evaluateCalibration(net, testImds, testLabels, varargin)
         scores = zeros(numSamples, 5);
         YPred = categorical(zeros(numSamples, 1), 0:4);
 
-        mn = [0.485 0.456 0.406]; sd = [0.229 0.224 0.225];
         for i = 1:numSamples
             img = readimage(testImds, i);
-            imgR = imresize(img, [224 224], 'bicubic');
-            n = double(imgR) / 255;
-            for c = 1:3
-                n(:,:,c) = (n(:,:,c) - mn(c)) / sd(c);
-            end
+            n = preprocessFundus(img, [224 224]);
             [pred_i, scores_i] = classify(net, n);
             YPred(i) = pred_i;
             scores(i, :) = scores_i;

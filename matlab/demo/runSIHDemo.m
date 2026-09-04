@@ -93,12 +93,7 @@ function runSIHDemo(varargin)
 
     % === Step 4: Preprocess ===
     if verbose; fprintf('Step 4: Preprocessing image...\n'); end
-    imgR = imresize(img, cfgTL.image.size, 'bicubic');
-    mn = [0.485 0.456 0.406]; sd = [0.229 0.224 0.225];
-    n = double(imgR)/255;
-    for c = 1:3
-        n(:,:,c) = (n(:,:,c) - mn(c)) / sd(c);
-    end
+    n = preprocessFundus(img, cfgTL.image.size);
     if verbose; fprintf('  Preprocessed to %dx%d\n\n', cfgTL.image.size(1), cfgTL.image.size(2)); end
 
     % === Step 5: AI Screening ===

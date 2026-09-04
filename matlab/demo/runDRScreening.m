@@ -132,13 +132,7 @@ function result = runDRScreening(imagePath, varargin)
             fprintf('[DRScreening] Step 3: Preprocessing\n');
         end
 
-        imgResized = imresize(img, cfgTL.image.size, 'bicubic');
-        meanRGB = [0.485 0.456 0.406];
-        stdRGB = [0.229 0.224 0.225];
-        imgNorm = double(imgResized) / 255;
-        for c = 1:3
-            imgNorm(:,:,c) = (imgNorm(:,:,c) - meanRGB(c)) / stdRGB(c);
-        end
+        imgNorm = preprocessFundus(img, cfgTL.image.size);
 
         % Step 4: DR classification
         if p.Results.Verbose

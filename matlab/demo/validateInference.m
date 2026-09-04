@@ -138,13 +138,7 @@ function testPreprocessing()
     testImg = randi([0, 255], 512, 512, 3, 'uint8');
 
     % Preprocess
-    imgResized = imresize(testImg, cfgTL.image.size, 'bicubic');
-    meanRGB = [0.485 0.456 0.406];
-    stdRGB = [0.229 0.224 0.225];
-    imgNorm = double(imgResized) / 255;
-    for c = 1:3
-        imgNorm(:,:,c) = (imgNorm(:,:,c) - meanRGB(c)) / stdRGB(c);
-    end
+    imgNorm = preprocessFundus(testImg, cfgTL.image.size);
 
     % Check dimensions
     assert(size(imgNorm, 1) == cfgTL.image.size(1), 'Height mismatch');
@@ -166,13 +160,7 @@ function testInference()
 
     % Create test image
     testImg = randi([0, 255], 512, 512, 3, 'uint8');
-    imgResized = imresize(testImg, cfgTL.image.size, 'bicubic');
-    meanRGB = [0.485 0.456 0.406];
-    stdRGB = [0.229 0.224 0.225];
-    imgNorm = double(imgResized) / 255;
-    for c = 1:3
-        imgNorm(:,:,c) = (imgNorm(:,:,c) - meanRGB(c)) / stdRGB(c);
-    end
+    imgNorm = preprocessFundus(testImg, cfgTL.image.size);
 
     % Classify
     [pred, scores] = classify(trainedNetTL, imgNorm);
@@ -191,13 +179,7 @@ function testDeterministic()
 
     % Create test image
     testImg = randi([0, 255], 512, 512, 3, 'uint8');
-    imgResized = imresize(testImg, cfgTL.image.size, 'bicubic');
-    meanRGB = [0.485 0.456 0.406];
-    stdRGB = [0.229 0.224 0.225];
-    imgNorm = double(imgResized) / 255;
-    for c = 1:3
-        imgNorm(:,:,c) = (imgNorm(:,:,c) - meanRGB(c)) / stdRGB(c);
-    end
+    imgNorm = preprocessFundus(testImg, cfgTL.image.size);
 
     % Run inference twice
     [pred1, scores1] = classify(trainedNetTL, imgNorm);

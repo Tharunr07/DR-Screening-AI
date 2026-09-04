@@ -258,13 +258,7 @@ function drScreeningGUI()
 
         try
             % Preprocess
-            imgResized = imresize(state.currentImage, state.cfgTL.image.size, 'bicubic');
-            meanRGB = [0.485 0.456 0.406];
-            stdRGB = [0.229 0.224 0.225];
-            imgNorm = double(imgResized) / 255;
-            for c = 1:3
-                imgNorm(:,:,c) = (imgNorm(:,:,c) - meanRGB(c)) / stdRGB(c);
-            end
+            imgNorm = preprocessFundus(state.currentImage, state.cfgTL.image.size);
 
             % Classify
             [pred, scores] = classify(state.trainedNet, imgNorm);
@@ -319,13 +313,7 @@ function drScreeningGUI()
 
         try
             % Formal Grad-CAM
-            imgResized = imresize(state.currentImage, state.cfgTL.image.size, 'bicubic');
-            meanRGB = [0.485 0.456 0.406];
-            stdRGB = [0.229 0.224 0.225];
-            imgNorm = double(imgResized) / 255;
-            for c = 1:3
-                imgNorm(:,:,c) = (imgNorm(:,:,c) - meanRGB(c)) / stdRGB(c);
-            end
+            imgNorm = preprocessFundus(state.currentImage, state.cfgTL.image.size);
 
             [cam, ~, ~] = gradcamSimple(state.trainedNet, imgNorm);
 

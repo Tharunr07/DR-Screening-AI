@@ -242,12 +242,18 @@ function drScreeningGUIv2()
 
     uicontrol(actionPanel, 'Style', 'pushbutton', ...
         'Position', [140, 40, 120, 35], ...
+        'String', 'Show Heatmap', ...
+        'FontSize', 10, ...
+        'Callback', @(src,evt) showHeatmap());
+
+    uicontrol(actionPanel, 'Style', 'pushbutton', ...
+        'Position', [10, 5, 120, 30], ...
         'String', 'Export', ...
         'FontSize', 10, ...
         'Callback', @(src,evt) exportReport());
 
     uicontrol(actionPanel, 'Style', 'pushbutton', ...
-        'Position', [140, 40, 120, 35], ...
+        'Position', [140, 5, 120, 30], ...
         'String', 'Reset', ...
         'FontSize', 10, ...
         'Callback', @(src,evt) resetAll());
@@ -423,12 +429,7 @@ function drScreeningGUIv2()
 
             % Preprocess
             cfgTL = transferLearningConfig();
-            imgR = imresize(state.currentImage, cfgTL.image.size, 'bicubic');
-            mn = [0.485 0.456 0.406]; sd = [0.229 0.224 0.225];
-            n = double(imgR)/255;
-            for c = 1:3
-                n(:,:,c) = (n(:,:,c) - mn(c)) / sd(c);
-            end
+            n = preprocessFundus(state.currentImage, cfgTL.image.size);
 
             % Classify
             [pred, scores] = classify(state.trainedNet, n);
@@ -628,8 +629,23 @@ function drScreeningGUIv2()
             % Evidence from current result
             evidence = state.currentResult.evidence;
 
-            % Grad-CAM (placeholder)
-            gradcam = struct('cam', rand(224, 224));
+            % Grad-CAM: genuine class-specific attention map.
+            % NEVER substitute random or fabricated data. On any failure,
+            % pass [] so the report honestly states "Grad-CAM: Not available".
+            gradcam = [];
+            try
+                if state.modelLoaded && ~isempty(state.currentImage)
+                    cfgG = transferLearningConfig();
+                    nG = preprocessFundus(state.currentImage, cfgG.image.size);
+                    [predG, ~] = classify(state.trainedNet, nG);
+                    [camG, ~, ~] = gradcamSimple(state.trainedNet, nG, ...
+                        'TargetClass', double(predG));
+                    gradcam = struct('cam', camG, ...
+                        'targetGrade', double(predG) - 1);
+                end
+            catch
+                gradcam = [];
+            end
 
             % Clinical decision from current result
             clinicalDecision = struct('status', 'GRADED', ...
@@ -662,6 +678,79 @@ function drScreeningGUIv2()
             statusIndicator.ForegroundColor = [0.2 0.6 0.9];
         catch ME
             errordlg(sprintf('Failed to generate report: %s', ME.message), 'Error');
+        end
+    end
+
+    function showHeatmap()
+        % showHeatmap  Display genuine class-specific Grad-CAM.
+        %
+        %   Uses the EXACT preprocessing of runScreening, predicts the DR
+        %   class, and computes Grad-CAM for that predicted class. On any
+        %   failure, reports "Grad-CAM unavailable" — never random data.
+        if isempty(state.currentImage)
+            errordlg('Upload an image first.', 'Grad-CAM unavailable');
+            return;
+        end
+        if ~state.modelLoaded
+            errordlg('Load model first.', 'Grad-CAM unavailable');
+            return;
+        end
+
+        try
+            % Identical preprocessing to runScreening
+            cfgH = transferLearningConfig();
+            nH = preprocessFundus(state.currentImage, cfgH.image.size);
+
+            [predH, scoresH] = classify(state.trainedNet, nH);
+            targetIdx = double(predH);      % MATLAB index 1..5
+            targetGrade = targetIdx - 1;    % DR grade 0..4
+
+            [camH, ~, ~] = gradcamSimple(state.trainedNet, nH, ...
+                'TargetClass', targetIdx);
+
+            % Resize attention map to displayed (original) image size
+            camDisp = imresize(camH, [size(state.currentImage, 1), ...
+                size(state.currentImage, 2)]);
+
+            heatFig = figure('Name', 'Grad-CAM Explainability', ...
+                'NumberTitle', 'off', ...
+                'Position', [120, 80, 1200, 420], ...
+                'Color', 'white');
+
+            subplot(1, 3, 1);
+            imshow(state.currentImage);
+            title('Original fundus image', 'FontSize', 11);
+
+            subplot(1, 3, 2);
+            imagesc(camDisp, [0, 1]);
+            axis image off;
+            colormap(heatFig, jet);
+            colorbar;
+            title(sprintf('Grad-CAM (predicted class G%d)', targetGrade), ...
+                'FontSize', 11);
+
+            subplot(1, 3, 3);
+            imshow(state.currentImage);
+            hold on;
+            hH = imagesc(camDisp, [0, 1]);
+            set(hH, 'AlphaData', 0.4);
+            hold off;
+            title(sprintf('Overlay (G%d, P=%.1f%%)', targetGrade, ...
+                max(scoresH)*100), 'FontSize', 11);
+
+            annotation(heatFig, 'textbox', [0.02, 0.01, 0.96, 0.06], ...
+                'String', ['Grad-CAM: model attention visualization. ' ...
+                'Attention map is an AI explanation aid and is not a ' ...
+                'lesion segmentation or clinical diagnosis.'], ...
+                'FontSize', 9, 'HorizontalAlignment', 'center', ...
+                'EdgeColor', 'none');
+
+            statusIndicator.String = sprintf( ...
+                'Grad-CAM displayed (class G%d)', targetGrade);
+            statusIndicator.ForegroundColor = [0.2 0.6 0.9];
+        catch ME
+            errordlg(sprintf('Grad-CAM unavailable: %s', ME.message), ...
+                'Grad-CAM unavailable');
         end
     end
 

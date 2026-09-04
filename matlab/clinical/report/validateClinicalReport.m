@@ -63,7 +63,10 @@ function results = validateClinicalReport(varargin)
             'neovascularization', struct('detected', false), ...
             'severity', 'mild', 'totalLesions', 6);
 
-        gradcam = struct('cam', rand(224, 224));
+        % Deterministic synthetic attention map (test fixture only;
+        % never displayed as an explanation). No random data allowed
+        % anywhere in the Grad-CAM path (Phase 20B.3).
+        gradcam = struct('cam', mat2gray(peaks(224)));
 
         % Set clinical decision based on quality status and consistency
         if strcmp(qualityStatus, 'POOR')

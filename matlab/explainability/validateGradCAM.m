@@ -110,10 +110,7 @@ function testFeatureExtraction()
     T = readtable('data/splits/test.csv');
     idx = find(T.dr_grade == 2, 1);
     img = imread(T.file_path_absolute{idx});
-    imgR = imresize(img, cfgTL.image.size, 'bicubic');
-    mn = [0.485 0.456 0.406]; sd = [0.229 0.224 0.225];
-    n = double(imgR)/255;
-    for c=1:3; n(:,:,c) = (n(:,:,c)-mn(c))/sd(c); end
+    n = preprocessFundus(img, cfgTL.image.size);
 
     featureMaps = activations(trainedNetTL, n, 'res5b_branch2b', 'OutputAs', 'channels');
     assert(size(featureMaps, 3) == 512, 'Expected 512 channels');
@@ -126,10 +123,7 @@ function testCAMGeneration()
     T = readtable('data/splits/test.csv');
     idx = find(T.dr_grade == 2, 1);
     img = imread(T.file_path_absolute{idx});
-    imgR = imresize(img, cfgTL.image.size, 'bicubic');
-    mn = [0.485 0.456 0.406]; sd = [0.229 0.224 0.225];
-    n = double(imgR)/255;
-    for c=1:3; n(:,:,c) = (n(:,:,c)-mn(c))/sd(c); end
+    n = preprocessFundus(img, cfgTL.image.size);
 
     [cam, ~, ~] = gradcamSimple(trainedNetTL, n);
     assert(~isempty(cam), 'CAM should not be empty');
@@ -142,10 +136,7 @@ function testNormalization()
     T = readtable('data/splits/test.csv');
     idx = find(T.dr_grade == 2, 1);
     img = imread(T.file_path_absolute{idx});
-    imgR = imresize(img, cfgTL.image.size, 'bicubic');
-    mn = [0.485 0.456 0.406]; sd = [0.229 0.224 0.225];
-    n = double(imgR)/255;
-    for c=1:3; n(:,:,c) = (n(:,:,c)-mn(c))/sd(c); end
+    n = preprocessFundus(img, cfgTL.image.size);
 
     [cam, ~, ~] = gradcamSimple(trainedNetTL, n);
     assert(min(cam(:)) >= 0, 'CAM min should be >= 0');
@@ -158,10 +149,7 @@ function testSizeMatching()
     T = readtable('data/splits/test.csv');
     idx = find(T.dr_grade == 2, 1);
     img = imread(T.file_path_absolute{idx});
-    imgR = imresize(img, cfgTL.image.size, 'bicubic');
-    mn = [0.485 0.456 0.406]; sd = [0.229 0.224 0.225];
-    n = double(imgR)/255;
-    for c=1:3; n(:,:,c) = (n(:,:,c)-mn(c))/sd(c); end
+    n = preprocessFundus(img, cfgTL.image.size);
 
     [cam, ~, ~] = gradcamSimple(trainedNetTL, n);
     assert(size(cam, 1) == size(n, 1), 'CAM height should match input');
@@ -174,10 +162,7 @@ function testDeterministic()
     T = readtable('data/splits/test.csv');
     idx = find(T.dr_grade == 2, 1);
     img = imread(T.file_path_absolute{idx});
-    imgR = imresize(img, cfgTL.image.size, 'bicubic');
-    mn = [0.485 0.456 0.406]; sd = [0.229 0.224 0.225];
-    n = double(imgR)/255;
-    for c=1:3; n(:,:,c) = (n(:,:,c)-mn(c))/sd(c); end
+    n = preprocessFundus(img, cfgTL.image.size);
 
     [cam1, ~, ~] = gradcamSimple(trainedNetTL, n);
     [cam2, ~, ~] = gradcamSimple(trainedNetTL, n);
@@ -190,10 +175,7 @@ function testClassSpecific()
     T = readtable('data/splits/test.csv');
     idx = find(T.dr_grade == 2, 1);
     img = imread(T.file_path_absolute{idx});
-    imgR = imresize(img, cfgTL.image.size, 'bicubic');
-    mn = [0.485 0.456 0.406]; sd = [0.229 0.224 0.225];
-    n = double(imgR)/255;
-    for c=1:3; n(:,:,c) = (n(:,:,c)-mn(c))/sd(c); end
+    n = preprocessFundus(img, cfgTL.image.size);
 
     % CAMs for different classes should be different
     [cam1, ~, ~] = gradcamSimple(trainedNetTL, n, 'TargetClass', 1);
@@ -207,10 +189,7 @@ function testOverlay()
     T = readtable('data/splits/test.csv');
     idx = find(T.dr_grade == 2, 1);
     img = imread(T.file_path_absolute{idx});
-    imgR = imresize(img, cfgTL.image.size, 'bicubic');
-    mn = [0.485 0.456 0.406]; sd = [0.229 0.224 0.225];
-    n = double(imgR)/255;
-    for c=1:3; n(:,:,c) = (n(:,:,c)-mn(c))/sd(c); end
+    n = preprocessFundus(img, cfgTL.image.size);
 
     [cam, ~, ~] = gradcamSimple(trainedNetTL, n);
 
