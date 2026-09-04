@@ -247,6 +247,9 @@ function text = generateTextReport(report)
         % Lesion Evidence
         lines{end+1} = 'LESION-LEVEL EVIDENCE';
         lines{end+1} = '---------------------';
+        lines{end+1} = 'NOTE: Lesion detection is experimental and has not been';
+        lines{end+1} = 'clinically validated against expert annotations.';
+        lines{end+1} = 'Counts are algorithmic outputs, not confirmed lesions.';
         lines{end+1} = sprintf('Microaneurysms: %d detected', report.evidence.microaneurysms);
         lines{end+1} = sprintf('Hemorrhages: %d detected', report.evidence.hemorrhages);
         lines{end+1} = sprintf('Exudates: %d detected', report.evidence.exudates);
@@ -282,7 +285,7 @@ function text = generateTextReport(report)
         else
             lines{end+1} = 'Grad-CAM: Not available';
         end
-        lines{end+1} = 'Lesion evidence: Available';
+        lines{end+1} = 'Lesion evidence: Experimental (not clinically validated)';
         lines{end+1} = '';
 
         % Consistency Warning
