@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agreement Report</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Inter-Reader Agreement Report</h1>
+            <a href="/admin" class="btn btn-secondary">Back to Admin</a>
+        </div>
+
+        {% if report.error %}
+        <div class="card error-card">
+            <h2>Error</h2>
+            <p>{{ report.error }}</p>
+        </div>
+        {% else %}
+
+        <!-- Overall Stats -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">{{ report.n_readers }}</div>
+                <div class="stat-label">Readers</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ report.n_images }}</div>
+                <div class="stat-label">Common Images</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ report.fleiss_kappa.kappa }}</div>
+                <div class="stat-label">Fleiss Kappa</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ report.n_disagreements }}</div>
+                <div class="stat-label">Disagreements</div>
+            </div>
+        </div>
+
+        <!-- Fleiss Kappa Interpretation -->
+        <div class="card">
+            <h2>Fleiss Kappa Interpretation</h2>
+            {% set k = report.fleiss_kappa.kappa %}
+            {% if k >= 0.8 %}
+            <p class="interpretation excellent">Excellent agreement (κ = {{ k }})</p>
+            {% elif k >= 0.6 %}
+            <p class="interpretation good">Substantial agreement (κ = {{ k }})</p>
+            {% elif k >= 0.4 %}
+            <p class="interpretation moderate">Moderate agreement (κ = {{ k }})</p>
+            {% elif k >= 0.2 %}
+            <p class="interpretation fair">Fair agreement (κ = {{ k }})</p>
+            {% else %}
+            <p class="interpretation poor">Poor agreement (κ = {{ k }}) — protocol review needed</p>
+            {% endif %}
+        </div>
+
+        <!-- Pairwise Kappa -->
+        <div class="card">
+            <h2>Pairwise Cohen's Kappa</h2>
+            <table class="data-table">
+                <tr><th>Pair</th><th>Kappa</th><th>Agreement</th><th>N</th></tr>
+                {% for pair, data in report.pairwise_kappa.items() %}
+                <tr>
+                    <td>{{ pair }}</td>
+                    <td>{{ data.kappa }}</td>
+                    <td>{{ (data.agreement * 100)|round(1) }}%</td>
+                    <td>{{ data.n }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+
+        <!-- Per-Grade Agreement -->
+        <div class="card">
+            <h2>Per-Grade Agreement</h2>
+            <table class="data-table">
+                <tr><th>Grade</th><th>Images</th><th>Full Agreement</th><th>Majority Agreement</th></tr>
+                {% for grade, data in report.per_grade_agreement.items() %}
+                <tr>
+                    <td><span class="grade-badge grade-{{ grade }}">G{{ grade }}</span></td>
+                    <td>{{ data.n_images_with_grade }}</td>
+                    <td>{{ (data.full_agreement_rate * 100)|round(1) }}%</td>
+                    <td>{{ (data.majority_agreement_rate * 100)|round(1) }}%</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+
+        <!-- Disagreement Rate -->
+        <div class="card">
+            <h2>Disagreement Summary</h2>
+            <p>Disagreement rate: <strong>{{ (report.disagreement_rate * 100)|round(1) }}%</strong></p>
+            <p>Disagreements requiring adjudication: <strong>{{ report.n_disagreements }}</strong> / {{ report.n_images }}</p>
+
+            {% if report.disagreement_cases %}
+            <h3>Disagreement Cases (first 20)</h3>
+            <table class="data-table">
+                <tr><th>Image ID</th><th>R1</th><th>R2</th><th>R3</th><th>Type</th></tr>
+                {% for case in report.disagreement_cases[:20] %}
+                <tr>
+                    <td>{{ case.image_id }}</td>
+                    <td>G{{ case.grades.values()|list|nth(0) }}</td>
+                    <td>G{{ case.grades.values()|list|nth(1) }}</td>
+                    <td>{% if case.grades.values()|list|length > 2 %}G{{ case.grades.values()|list|nth(2) }}{% else %}—{% endif %}</td>
+                    <td>{{ case.type }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+            {% endif %}
+        </div>
+
+        <!-- Lesion Agreement -->
+        {% if report.lesion_agreement %}
+        <div class="card">
+            <h2>Lesion Mask Agreement (Dice Coefficient)</h2>
+            <table class="data-table">
+                <tr><th>Lesion Type</th><th>N Images</th><th>Mean Dice</th><th>Std</th><th>Min</th><th>Max</th></tr>
+                {% for lt, data in report.lesion_agreement.items() %}
+                {% if data.mean_dice is not none %}
+                <tr>
+                    <td>{{ lt }}</td>
+                    <td>{{ data.n_images }}</td>
+                    <td>{{ data.mean_dice }}</td>
+                    <td>{{ data.std_dice }}</td>
+                    <td>{{ data.min_dice }}</td>
+                    <td>{{ data.max_dice }}</td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </table>
+        </div>
+        {% endif %}
+
+        {% endif %}
+    </div>
+</body>
+</html>

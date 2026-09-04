@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Annotation Complete</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="card" style="text-align: center; padding: 60px 40px;">
+            <h1 style="font-size: 2em; margin-bottom: 20px;">Annotation Complete</h1>
+            <p style="font-size: 1.2em; color: #666;">
+                Reader <strong>{{ reader_id }}</strong> has annotated all images in the cohort.
+            </p>
+            <div style="margin-top: 30px;">
+                <a href="/admin/agreement" class="btn btn-primary" style="margin: 10px;">View Agreement Report</a>
+                <a href="/admin" class="btn btn-secondary" style="margin: 10px;">Admin Dashboard</a>
+                <a href="/" class="btn btn-secondary" style="margin: 10px;">Home</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

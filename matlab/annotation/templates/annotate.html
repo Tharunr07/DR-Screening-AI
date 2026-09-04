@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Annotate — {{ image.image_id }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="annotation-layout">
+        <!-- Left panel: Image -->
+        <div class="image-panel">
+            <div class="image-header">
+                <span class="reader-badge">{{ reader_id }}</span>
+                <span class="image-id">{{ image.image_id }}</span>
+                <span class="image-dataset">{{ image.dataset }}</span>
+                {% if is_lesion_image %}
+                <span class="lesion-badge">Lesion Annotation Required</span>
+                {% endif %}
+            </div>
+
+            <div class="image-container" id="imageContainer">
+                <img id="fundusImage"
+                     src="/api/image/{{ image_path }}"
+                     alt="{{ image.image_id }}"
+                     draggable="false">
+            </div>
+
+            <div class="image-controls">
+                <button onclick="zoomIn()" class="btn btn-small">Zoom +</button>
+                <button onclick="zoomOut()" class="btn btn-small">Zoom -</button>
+                <button onclick="resetZoom()" class="btn btn-small">Reset</button>
+                <span class="zoom-level" id="zoomLevel">100%</span>
+            </div>
+
+            {% if is_lesion_image %}
+            <!-- Lesion annotation tools -->
+            <div class="lesion-tools">
+                <h3>Lesion Mask Tools</h3>
+                <div class="tool-row">
+                    <button onclick="selectLesionType('MA')" class="btn btn-lesion" id="btn-MA">
+                        <span class="lesion-dot" style="background: red"></span> MA
+                    </button>
+                    <button onclick="selectLesionType('HE')" class="btn btn-lesion" id="btn-HE">
+                        <span class="lesion-dot" style="background: blue"></span> HE
+                    </button>
+                    <button onclick="selectLesionType('EX')" class="btn btn-lesion" id="btn-EX">
+                        <span class="lesion-dot" style="background: green"></span> EX
+                    </button>
+                    <button onclick="selectLesionType('NV')" class="btn btn-lesion" id="btn-NV">
+                        <span class="lesion-dot" style="background: yellow"></span> NV
+                    </button>
+                </div>
+                <div class="tool-row">
+                    <button onclick="setTool('brush')" class="btn btn-tool active" id="btn-brush">Brush</button>
+                    <button onclick="setTool('eraser')" class="btn btn-tool" id="btn-eraser">Eraser</button>
+                    <label>Size: <input type="range" id="brushSize" min="2" max="30" value="8" onchange="updateBrushSize(this.value)"></label>
+                </div>
+                <div class="tool-row">
+                    <button onclick="undoMask()" class="btn btn-small">Undo</button>
+                    <button onclick="clearMask()" class="btn btn-small">Clear</button>
+                    <button onclick="toggleLayer()" class="btn btn-small">Toggle Layer</button>
+                </div>
+                <canvas id="maskCanvas"></canvas>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Right panel: Annotation form -->
+        <div class="form-panel">
+            <h2>Grade This Image</h2>
+
+            <div class="form-group">
+                <label>DR Grade</label>
+                <div class="grade-selector">
+                    {% for grade, desc in dr_grades.items() %}
+                    <label class="grade-option">
+                        <input type="radio" name="dr_grade" value="{{ grade }}" required>
+                        <span class="grade-label grade-{{ grade }}">G{{ grade }}</span>
+                        <span class="grade-desc">{{ desc }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Reader Confidence</label>
+                <div class="confidence-selector">
+                    {% for i in range(1, 6) %}
+                    <label class="confidence-option">
+                        <input type="radio" name="reader_confidence" value="{{ i }}" required>
+                        <span class="confidence-label">{{ i }}</span>
+                        <span class="confidence-desc">{{ ["Very uncertain", "Somewhat uncertain", "Neutral", "Confident", "Very confident"][i-1] }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Image Quality</label>
+                <div class="confidence-selector">
+                    {% for i in range(1, 6) %}
+                    <label class="confidence-option">
+                        <input type="radio" name="image_quality" value="{{ i }}" required>
+                        <span class="confidence-label">{{ i }}</span>
+                        <span class="confidence-desc">{{ ["Uninterpretable", "Poor", "Adequate", "Good", "Excellent"][i-1] }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Notes (optional)</label>
+                <textarea id="notes" rows="3" placeholder="Any observations, ambiguities, or rationale..."></textarea>
+            </div>
+
+            <div class="form-actions">
+                <button onclick="submitAnnotation()" class="btn btn-primary btn-large" id="submitBtn">
+                    Save & Next
+                </button>
+                {% if next_image_id %}
+                <a href="/annotate/{{ reader_id }}/{{ next_image_id }}" class="btn btn-secondary" id="skipBtn">
+                    Skip
+                </a>
+                {% endif %}
+            </div>
+
+            <div class="form-status" id="formStatus"></div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        const readerId = '{{ reader_id }}';
+        const imageId = '{{ image.image_id }}';
+        const isLesionImage = {{ 'true' if is_lesion_image else 'false' }};
+        let annotationStartTime = Date.now();
+        let zoom = 1;
+        let selectedLesionType = null;
+        let currentTool = 'brush';
+        let brushSize = 8;
+        let maskHistory = [];
+        let layerVisible = true;
+
+        // Zoom controls
+        function zoomIn() {
+            zoom = Math.min(zoom + 0.25, 4);
+            updateZoom();
+        }
+        function zoomOut() {
+            zoom = Math.max(zoom - 0.25, 0.25);
+            updateZoom();
+        }
+        function resetZoom() {
+            zoom = 1;
+            updateZoom();
+        }
+        function updateZoom() {
+            const img = document.getElementById('fundusImage');
+            img.style.transform = `scale(${zoom})`;
+            document.getElementById('zoomLevel').textContent = Math.round(zoom * 100) + '%';
+            if (isLesionImage) resizeMaskCanvas();
+        }
+
+        // Lesion annotation
+        function selectLesionType(type) {
+            document.querySelectorAll('.btn-lesion').forEach(b => b.classList.remove('active'));
+            document.getElementById('btn-' + type).classList.add('active');
+            selectedLesionType = type;
+        }
+
+        function setTool(tool) {
+            currentTool = tool;
+            document.querySelectorAll('.btn-tool').forEach(b => b.classList.remove('active'));
+            document.getElementById('btn-' + tool).classList.add('active');
+        }
+
+        function updateBrushSize(size) {
+            brushSize = parseInt(size);
+        }
+
+        // Mask canvas setup
+        function initMaskCanvas() {
+            if (!isLesionImage) return;
+            const canvas = document.getElementById('maskCanvas');
+            const img = document.getElementById('fundusImage');
+            const container = document.getElementById('imageContainer');
+
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            canvas.style.width = '100%';
+            canvas.style.height = 'auto';
+
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+            ctx.strokeStyle = 'rgba(255, 0, 0, 0.6)';
+            ctx.lineWidth = brushSize;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            let drawing = false;
+            let lastX, lastY;
+
+            canvas.addEventListener('mousedown', (e) => {
+                drawing = true;
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                lastX = (e.clientX - rect.left) * scaleX;
+                lastY = (e.clientY - rect.top) * scaleY;
+                saveMaskState();
+            });
+
+            canvas.addEventListener('mousemove', (e) => {
+                if (!drawing) return;
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                const x = (e.clientX - rect.left) * scaleX;
+                const y = (e.clientY - rect.top) * scaleY;
+
+                ctx.beginPath();
+                ctx.moveTo(lastX, lastY);
+                ctx.lineTo(x, y);
+
+                if (currentTool === 'eraser') {
+                    ctx.globalCompositeOperation = 'destination-out';
+                    ctx.lineWidth = brushSize * 2;
+                } else {
+                    ctx.globalCompositeOperation = 'source-over';
+                    ctx.lineWidth = brushSize;
+                }
+
+                ctx.stroke();
+                lastX = x;
+                lastY = y;
+            });
+
+            canvas.addEventListener('mouseup', () => { drawing = false; });
+            canvas.addEventListener('mouseleave', () => { drawing = false; });
+        }
+
+        function saveMaskState() {
+            const canvas = document.getElementById('maskCanvas');
+            maskHistory.push(canvas.toDataURL());
+            if (maskHistory.length > 50) maskHistory.shift();
+        }
+
+        function undoMask() {
+            if (maskHistory.length === 0) return;
+            const dataUrl = maskHistory.pop();
+            const canvas = document.getElementById('maskCanvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            img.onload = () => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0);
+            };
+            img.src = dataUrl;
+        }
+
+        function clearMask() {
+            const canvas = document.getElementById('maskCanvas');
+            const ctx = canvas.getContext('2d');
+            saveMaskState();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function toggleLayer() {
+            const canvas = document.getElementById('maskCanvas');
+            layerVisible = !layerVisible;
+            canvas.style.opacity = layerVisible ? 1 : 0;
+        }
+
+        // Submit annotation
+        function submitAnnotation() {
+            const grade = document.querySelector('input[name="dr_grade"]:checked');
+            const confidence = document.querySelector('input[name="reader_confidence"]:checked');
+            const quality = document.querySelector('input[name="image_quality"]:checked');
+
+            if (!grade || !confidence || !quality) {
+                document.getElementById('formStatus').textContent = 'Please complete all required fields.';
+                document.getElementById('formStatus').className = 'form-status error';
+                return;
+            }
+
+            const annotationTime = Math.round((Date.now() - annotationStartTime) / 1000);
+            const data = {
+                reader_id: readerId,
+                image_id: imageId,
+                dr_grade: parseInt(grade.value),
+                reader_confidence: parseInt(confidence.value),
+                image_quality: parseInt(quality.value),
+                notes: document.getElementById('notes').value,
+                annotation_time: annotationTime
+            };
+
+            // Save grading annotation
+            fetch('/api/annotate/grading', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            })
+            .then(r => r.json())
+            .then(resp => {
+                // Save lesion masks if applicable
+                if (isLesionImage && selectedLesionType) {
+                    saveLesionMasks().then(() => {
+                        navigateNext();
+                    });
+                } else {
+                    navigateNext();
+                }
+            })
+            .catch(err => {
+                document.getElementById('formStatus').textContent = 'Error saving: ' + err;
+                document.getElementById('formStatus').className = 'form-status error';
+            });
+        }
+
+        function saveLesionMasks() {
+            const canvas = document.getElementById('maskCanvas');
+            if (!canvas || !selectedLesionType) return Promise.resolve();
+
+            return canvas.toBlob(blob => {
+                const formData = new FormData();
+                formData.append('reader_id', readerId);
+                formData.append('image_id', imageId);
+                formData.append('lesion_type', selectedLesionType);
+                formData.append('mask', blob, 'mask.png');
+                return fetch('/api/annotate/lesion', {method: 'POST', body: formData});
+            }, 'image/png');
+        }
+
+        function navigateNext() {
+            {% if next_image_id %}
+            window.location.href = '/annotate/{{ reader_id }}/{{ next_image_id }}';
+            {% else %}
+            window.location.href = '/reader/{{ reader_id }}';
+            {% endif %}
+        }
+
+        // Init
+        document.addEventListener('DOMContentLoaded', () => {
+            if (isLesionImage) {
+                const img = document.getElementById('fundusImage');
+                if (img.complete) {
+                    initMaskCanvas();
+                } else {
+                    img.onload = initMaskCanvas;
+                }
+            }
+        });
+    </script>
+</body>
+</html>
