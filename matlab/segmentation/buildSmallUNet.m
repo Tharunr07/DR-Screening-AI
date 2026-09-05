@@ -1,0 +1,16 @@
+function net = buildSmallUNet(inputSize, numClasses)
+% buildSmallUNet  Create a small U-Net for CPU training
+%   inputSize: [H W C] e.g. [256 256 3]
+%   numClasses: number of output classes (2 for binary)
+
+    fprintf('Building small U-Net: %dx%dx%d input, %d classes\n', ...
+        inputSize(1), inputSize(2), inputSize(3), numClasses);
+
+    net = unet(inputSize, numClasses, ...
+        'EncoderDepth', 3, ...
+        'NumFirstEncoderFilters', 32, ...
+        'FilterSize', 3, ...
+        'ConvolutionPadding', 'same');
+
+    fprintf('U-Net created.\n');
+end
