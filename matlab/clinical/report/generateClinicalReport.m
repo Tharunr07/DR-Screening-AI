@@ -360,7 +360,7 @@ function disclaimer = generateDisclaimer()
         'qualified healthcare professional.'
         ''
         'Model: Transfer Learning ResNet-18 (Phase 17 validated)'
-        'Performance: Sensitivity 87.2%, Specificity 92.7%'
+        'Performance: 91.0% referable sensitivity, 91.5% referable specificity (internal evaluation)'
         'Note: External clinical validation not performed'
         ''
         'Lesion evidence is AI-assisted supporting evidence.'

@@ -808,7 +808,7 @@ function drScreeningGUIv2()
             fprintf(fid, 'This is an AI-assisted screening result, not a definitive diagnosis.\n');
             fprintf(fid, 'Clinical correlation and ophthalmologist review are recommended.\n');
             fprintf(fid, 'Model: Transfer Learning ResNet-18 (Phase 17 validated)\n');
-            fprintf(fid, 'Performance: Sensitivity 87.2%%, Specificity 92.7%%\n');
+            fprintf(fid, 'Performance: 91.0%% referable sensitivity, 91.5%% referable specificity (internal evaluation)\n');
             fprintf(fid, 'Lesion evidence is AI-assisted supporting evidence.\n');
 
             fclose(fid);
