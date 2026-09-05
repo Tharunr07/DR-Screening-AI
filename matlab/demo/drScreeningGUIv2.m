@@ -568,6 +568,7 @@ function drScreeningGUIv2()
             state.currentResult.scores = scores;
             state.currentResult.evidence = evidence;
             state.currentResult.timestamp = datestr(now, 'yyyy-mm-dd HH:MM:SS');
+            state.currentResult.quality = quality;
 
             % Add to history
             addToHistory(result);
@@ -616,8 +617,8 @@ function drScreeningGUIv2()
             imageInfo = struct('path', state.currentImagePath, ...
                 'timestamp', datestr(now, 'yyyy-mm-dd HH:MM:SS'));
 
-            % Get quality info from current result
-            quality = struct('status', 'GOOD', 'score', 0.8, 'brightness', 120, 'contrast', 45);
+            % Get quality info from actual screening result
+            quality = state.currentResult.quality;
 
             % Classification from current result
             classification = struct('gradeNum', state.currentResult.gradeNum, ...
@@ -780,10 +781,10 @@ function drScreeningGUIv2()
 
             fprintf(fid, 'SCREENING RESULT\n');
             fprintf(fid, '----------------\n');
-            fprintf(fid, 'DR Grade: %s (G%d)\n', r.gradeName, r.grade);
+            fprintf(fid, 'DR Grade: %s (G%d)\n', r.gradeName, r.gradeNum);
             fprintf(fid, 'Referable DR: %s\n', string(r.referable));
-            fprintf(fid, 'Confidence: %.1f%%\n', r.confidence*100);
-            fprintf(fid, 'Referable Probability: %.4f\n', r.referableProb);
+            fprintf(fid, 'Confidence: %.1f%%\n', r.confidence);
+            fprintf(fid, 'Referable Probability: %.4f\n', r.probability);
             fprintf(fid, 'Threshold: 0.1951\n\n');
 
             fprintf(fid, 'CLINICAL EVIDENCE\n');
