@@ -65,7 +65,9 @@ function runSIHDemo(varargin)
     end
     brightness = mean(grayImg(:));
     contrast = std(double(grayImg(:)));
-    blurVar = std(double(imfilter(grayImg, fspecial('laplacian'))));
+    lap = fspecial('laplacian');
+    lapResult = conv2(double(grayImg), lap, 'same');
+    blurVar = var(lapResult(:));
 
     quality = struct();
     quality.brightness = brightness;

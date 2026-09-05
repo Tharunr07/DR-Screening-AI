@@ -195,7 +195,7 @@ function testOverlay()
 
     % Create overlay
     fig = figure('Visible', 'off');
-    imshow(uint8(imgR));
+    imshow(uint8(img));
     hold on;
     h = imagesc(cam, [0, 1]);
     set(h, 'AlphaData', 0.4);

@@ -257,22 +257,49 @@ function drScreeningGUI()
         drawnow;
 
         try
+            % Quality assessment (canonical pipeline)
+            gray = rgb2gray(state.currentImage);
+            brightness = mean(gray(:));
+            contrast = std(double(gray(:)));
+            lap = fspecial('laplacian');
+            lapResult = conv2(double(gray), lap, 'same');
+            blurVar = var(lapResult(:));
+
+            quality = struct();
+            quality.brightness = brightness;
+            quality.contrast = contrast;
+            quality.sharpness = blurVar;
+
+            score = 0;
+            if brightness >= 40 && brightness <= 220; score = score + 1; end
+            if contrast >= 20; score = score + 1; end
+            if blurVar >= 100; score = score + 1; end
+
+            if score == 3
+                quality.status = 'GOOD';
+            elseif score == 2
+                quality.status = 'BORDERLINE';
+            else
+                quality.status = 'POOR';
+            end
+
             % Preprocess
             imgNorm = preprocessFundus(state.currentImage, state.cfgTL.image.size);
 
             % Classify
             [pred, scores] = classify(state.trainedNet, imgNorm);
-
             gradeNum = double(pred) - 1;
-            grades = {'No DR', 'Mild NPDR', 'Moderate NPDR', 'Severe NPDR', 'Proliferative DR'};
-            refProb = sum(scores(3:5));
-            isReferable = refProb >= 0.1951;
-            confidence = max(scores);
+
+            % Lesion evidence
+            evidence = extractLesionEvidence(state.currentImage);
+
+            % Clinical decision via canonical logic
+            result = applyClinicalLogic(gradeNum, scores, evidence, quality);
 
             % Update UI
-            gradeText.String = sprintf('Grade %d: %s', gradeNum, grades{gradeNum+1});
+            gradeText.String = sprintf('Grade %d: %s', result.gradeNum, result.gradeName);
 
-            if isReferable
+            if result.referable
                 refText.String = 'YES';
                 refText.ForegroundColor = [0.8 0 0];
             else
@@ -280,8 +307,8 @@ function drScreeningGUI()
                 refText.ForegroundColor = [0 0.5 0];
             end
 
-            confText.String = sprintf('%.1f%%', confidence*100);
-            probBar.String = sprintf('%.4f (threshold: 0.1951)', refProb);
+            confText.String = sprintf('%.1f%%', result.confidence);
+            probBar.String = sprintf('%.4f (max class prob)', result.probability);
 
             % Class probabilities bar chart
             axes(probAxes);
@@ -291,15 +318,13 @@ function drScreeningGUI()
             ylim([0, 1]);
             title('Output Distribution');
 
-            % Store result
-            state.currentResult = struct();
-            state.currentResult.prediction = struct('grade', gradeNum, 'label', grades{gradeNum+1}, 'scores', scores);
-            state.currentResult.referable = struct('isReferable', isReferable, 'probability', refProb);
-            state.currentResult.confidence = confidence;
+            % Store result (flat structure matching applyClinicalLogic output)
+            state.currentResult = result;
             state.currentResult.scores = scores;
+            state.currentResult.evidence = evidence;
 
             statusText.String = sprintf('Complete: Grade %d (%s), Referable=%d, Conf=%.1f%%', ...
-                gradeNum, grades{gradeNum+1}, isReferable, confidence*100);
+                result.gradeNum, result.gradeName, result.referable, result.confidence);
         catch ME
             statusText.String = sprintf('Screening FAILED: %s', ME.message);
         end
@@ -318,7 +343,7 @@ function drScreeningGUI()
             [cam, ~, ~] = gradcamSimple(state.trainedNet, imgNorm);
 
             % Get top class from stored results
-            topClass = state.currentResult.prediction.grade + 1;
+            topClass = state.currentResult.gradeNum + 1;
 
             % Overlay
             fig = figure('Name', 'Grad-CAM Explainability', 'NumberTitle', 'off');
@@ -328,7 +353,7 @@ function drScreeningGUI()
             set(h, 'AlphaData', 0.4);
             colormap(fig, jet);
             colorbar;
-            title(sprintf('Grad-CAM (Predicted: G%d, %s)', topClass-1, state.currentResult.prediction.label));
+            title(sprintf('Grad-CAM (Predicted: G%d, %s)', topClass-1, state.currentResult.gradeName));
             hold off;
 
             statusText.String = 'Grad-CAM heatmap displayed.';
@@ -450,10 +475,10 @@ function drScreeningGUI()
             sprintf('Quality: %s', qualityText.String), ...
             '', ...
             '--- CLASSIFICATION ---', ...
-            sprintf('DR Grade: %d (%s)', r.prediction.grade, r.prediction.label), ...
-            sprintf('Referable DR: %s', string(r.referable.isReferable)), ...
-            sprintf('Referable Probability: %.4f', r.referable.probability), ...
-            sprintf('Confidence: %.1f%%', r.confidence*100), ...
+            sprintf('DR Grade: %d (%s)', r.gradeNum, r.gradeName), ...
+            sprintf('Referable DR: %s', string(r.referable)), ...
+            sprintf('Referable Probability: %.4f', r.probability), ...
+            sprintf('Confidence: %.1f%%', r.confidence), ...
             '', ...
             '--- CLASS PROBABILITIES ---', ...
             sprintf('  G0 (No DR):    %.4f', r.scores(1)), ...
@@ -501,10 +526,10 @@ function drScreeningGUI()
         fprintf(fid, 'Image: %s\n\n', state.currentImagePath);
         fprintf(fid, 'QUALITY: %s\n\n', qualityText.String);
         fprintf(fid, 'CLASSIFICATION:\n');
-        fprintf(fid, '  DR Grade: %d (%s)\n', r.prediction.grade, r.prediction.label);
-        fprintf(fid, '  Referable DR: %s\n', string(r.referable.isReferable));
-        fprintf(fid, '  Referable Probability: %.4f\n', r.referable.probability);
-        fprintf(fid, '  Confidence: %.1f%%\n\n', r.confidence*100);
+        fprintf(fid, '  DR Grade: %d (%s)\n', r.gradeNum, r.gradeName);
+        fprintf(fid, '  Referable DR: %s\n', string(r.referable));
+        fprintf(fid, '  Referable Probability: %.4f\n', r.probability);
+        fprintf(fid, '  Confidence: %.1f%%\n\n', r.confidence);
         fprintf(fid, 'CLASS PROBABILITIES:\n');
         for g = 0:4
             fprintf(fid, '  G%d: %.4f\n', g, r.scores(g+1));
