@@ -392,7 +392,7 @@ function drScreeningGUI()
                 set(h, 'AlphaData', 0.4);
             end
             hold off;
-            title(sprintf('Microaneurysms: %d', evidence.microaneurysms.count));
+            title(sprintf('Microaneurysms: %d (supporting)', evidence.microaneurysms.count));
 
             % Hemorrhage mask
             subplot(2, 3, 3);
@@ -403,7 +403,7 @@ function drScreeningGUI()
                 set(h, 'AlphaData', 0.4);
             end
             hold off;
-            title(sprintf('Hemorrhages: %d', evidence.hemorrhages.count));
+            title(sprintf('Hemorrhages: %d (supporting)', evidence.hemorrhages.count));
 
             % Exudate mask
             subplot(2, 3, 4);
@@ -414,7 +414,7 @@ function drScreeningGUI()
                 set(h, 'AlphaData', 0.4);
             end
             hold off;
-            title(sprintf('Exudates: %d', evidence.exudates.count));
+            title(sprintf('Exudates: %d (supporting)', evidence.exudates.count));
 
             % Neovascularization
             subplot(2, 3, 5);
@@ -425,30 +425,30 @@ function drScreeningGUI()
                 set(h, 'AlphaData', 0.4);
             end
             hold off;
-            title(sprintf('Neovascularization: %s', string(evidence.neovascularization.detected)));
+            title(sprintf('Neovascularization: %s (supporting)', string(evidence.neovascularization.detected)));
 
             % Summary
             subplot(2, 3, 6);
             axis off;
             summaryText = { ...
-                'LESION EVIDENCE SUMMARY', ...
+                'LESION EVIDENCE SUMMARY (SUPPORTING)', ...
                 '', ...
-                sprintf('Severity: %s', evidence.severity), ...
+                sprintf('Severity: %s (supporting)', evidence.severity), ...
                 sprintf('Total lesions: %d', evidence.totalLesions), ...
                 '', ...
-                sprintf('Microaneurysms: %d', evidence.microaneurysms.count), ...
-                sprintf('Hemorrhages: %d', evidence.hemorrhages.count), ...
-                sprintf('Exudates: %d', evidence.exudates.count), ...
-                sprintf('Neovascularization: %s', string(evidence.neovascularization.detected)), ...
+                sprintf('Microaneurysms: %d (supporting)', evidence.microaneurysms.count), ...
+                sprintf('Hemorrhages: %d (supporting)', evidence.hemorrhages.count), ...
+                sprintf('Exudates: %d (supporting)', evidence.exudates.count), ...
+                sprintf('Neovascularization: %s (supporting)', string(evidence.neovascularization.detected)), ...
                 '', ...
                 evidence.summary ...
             };
             text(0.1, 0.9, summaryText, 'FontSize', 9, 'VerticalAlignment', 'top');
             title('Evidence Summary');
 
-            sgtitle('Lesion-Level Evidence Analysis', 'FontSize', 12, 'FontWeight', 'bold');
+            sgtitle('Lesion-Level Evidence Analysis (Supporting)', 'FontSize', 12, 'FontWeight', 'bold');
 
-            statusText.String = sprintf('Lesion evidence: %s (%d total)', evidence.severity, evidence.totalLesions);
+            statusText.String = sprintf('Lesion evidence (supporting): %s (%d total)', evidence.severity, evidence.totalLesions);
         catch ME
             statusText.String = sprintf('Lesion evidence FAILED: %s', ME.message);
         end
@@ -536,6 +536,9 @@ function drScreeningGUI()
         end
         fprintf(fid, '\n========================================\n');
         fprintf(fid, 'DISCLAIMER: Research prototype. Not for clinical use.\n');
+        fprintf(fid, 'Lesion detection is experimental and has not been clinically validated.\n');
+        fprintf(fid, 'Lesion evidence is provided for research/supporting purposes only\n');
+        fprintf(fid, 'and should not be interpreted as a confirmed clinical finding.\n');
         fclose(fid);
 
         statusText.String = sprintf('Report saved: %s', fullfile(path, file));
