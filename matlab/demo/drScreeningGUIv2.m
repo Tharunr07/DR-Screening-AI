@@ -774,6 +774,10 @@ function drScreeningGUIv2()
             e = r.evidence;
 
             fid = fopen(fullPath, 'w');
+            if fid == -1
+                errordlg(sprintf('Cannot open file for writing:\n%s', fullPath), 'Export Error');
+                return;
+            end
             fprintf(fid, 'DR SCREENING REPORT\n');
             fprintf(fid, '==================\n\n');
             fprintf(fid, 'Date: %s\n', r.timestamp);
